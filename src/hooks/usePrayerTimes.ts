@@ -1,23 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
-
-export interface PrayerTimeRecord {
-  id: string;
-  date: string;
-  hijri_date: string | null;
-  subah_adhan: string | null;
-  subah_iqamath: string | null;
-  sunrise: string | null;
-  luhar_adhan: string | null;
-  luhar_iqamath: string | null;
-  asr_adhan: string | null;
-  asr_iqamath: string | null;
-  magrib_adhan: string | null;
-  magrib_iqamath: string | null;
-  isha_adhan: string | null;
-  isha_iqamath: string | null;
-}
+import { addMinutesToTime, IQAMATH_OFFSETS } from '@/lib/iqamathOffset';
 
 export interface PrayerEntry {
   name: string;
@@ -25,6 +9,17 @@ export interface PrayerEntry {
   iqamath: string | null;
   hasIqamath: boolean;
 }
+
+interface MergedTimes {
+  subah_adhan: string | null;
+  sunrise: string | null;
+  luhar_adhan: string | null;
+  asr_adhan: string | null;
+  magrib_adhan: string | null;
+  isha_adhan: string | null;
+}
+
+const TIME_FIELDS = ['subah_adhan', 'sunrise', 'luhar_adhan', 'asr_adhan', 'magrib_adhan', 'isha_adhan'] as const;
 
 function parseTimeToMinutes(timeStr: string | null): number | null {
   if (!timeStr) return null;
@@ -39,15 +34,15 @@ function parseTimeToMinutes(timeStr: string | null): number | null {
   return hours * 60 + minutes;
 }
 
-export function getPrayerList(record: PrayerTimeRecord | null): PrayerEntry[] {
-  if (!record) return getEmptyPrayerList();
+export function getPrayerList(merged: MergedTimes | null): PrayerEntry[] {
+  if (!merged) return getEmptyPrayerList();
   return [
-    { name: 'Subah', adhan: record.subah_adhan, iqamath: record.subah_iqamath, hasIqamath: true },
-    { name: 'Sunrise', adhan: record.sunrise, iqamath: null, hasIqamath: false },
-    { name: 'Luhar', adhan: record.luhar_adhan, iqamath: record.luhar_iqamath, hasIqamath: true },
-    { name: 'Asr', adhan: record.asr_adhan, iqamath: record.asr_iqamath, hasIqamath: true },
-    { name: 'Magrib', adhan: record.magrib_adhan, iqamath: record.magrib_iqamath, hasIqamath: true },
-    { name: 'Isha', adhan: record.isha_adhan, iqamath: record.isha_iqamath, hasIqamath: true },
+    { name: 'Subah', adhan: merged.subah_adhan, iqamath: addMinutesToTime(merged.subah_adhan, IQAMATH_OFFSETS.Subah), hasIqamath: true },
+    { name: 'Sunrise', adhan: merged.sunrise, iqamath: null, hasIqamath: false },
+    { name: 'Luhar', adhan: merged.luhar_adhan, iqamath: addMinutesToTime(merged.luhar_adhan, IQAMATH_OFFSETS.Luhar), hasIqamath: true },
+    { name: 'Asr', adhan: merged.asr_adhan, iqamath: addMinutesToTime(merged.asr_adhan, IQAMATH_OFFSETS.Asr), hasIqamath: true },
+    { name: 'Magrib', adhan: merged.magrib_adhan, iqamath: addMinutesToTime(merged.magrib_adhan, IQAMATH_OFFSETS.Magrib), hasIqamath: true },
+    { name: 'Isha', adhan: merged.isha_adhan, iqamath: addMinutesToTime(merged.isha_adhan, IQAMATH_OFFSETS.Isha), hasIqamath: true },
   ];
 }
 
@@ -68,7 +63,7 @@ export function getNextPrayerIndex(prayers: PrayerEntry[], now: Date): number {
     const mins = parseTimeToMinutes(prayers[i].adhan);
     if (mins !== null && mins > currentMinutes) return i;
   }
-  return -1; // all prayers passed
+  return -1;
 }
 
 export function getCountdown(prayers: PrayerEntry[], nextIndex: number, now: Date): string {
@@ -84,7 +79,7 @@ export function getCountdown(prayers: PrayerEntry[], nextIndex: number, now: Dat
 }
 
 export function usePrayerTimes() {
-  const [record, setRecord] = useState<PrayerTimeRecord | null>(null);
+  const [merged, setMerged] = useState<MergedTimes | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -93,27 +88,40 @@ export function usePrayerTimes() {
     setLoading(true);
     setError(null);
     const dateStr = format(date, 'yyyy-MM-dd');
+
     const { data, error: err } = await supabase
-      .from('prayer_times')
+      .from('prayer_time_changes')
       .select('*')
-      .eq('date', dateStr)
-      .maybeSingle();
+      .lte('effective_from', dateStr)
+      .order('effective_from', { ascending: true });
 
     if (err) {
       setError('Failed to load prayer times');
-      setRecord(null);
-    } else if (!data) {
-      setError('Prayer times not available for this date');
-      setRecord(null);
+      setMerged(null);
+    } else if (!data || data.length === 0) {
+      setError('Prayer time data not available');
+      setMerged(null);
     } else {
-      setRecord(data as PrayerTimeRecord);
+      // Carry-forward merge
+      const result: MergedTimes = {
+        subah_adhan: null, sunrise: null, luhar_adhan: null,
+        asr_adhan: null, magrib_adhan: null, isha_adhan: null,
+      };
+      for (const row of data) {
+        for (const field of TIME_FIELDS) {
+          const val = row[field] as string | null;
+          if (val && val.trim() !== '') {
+            result[field] = val.trim();
+          }
+        }
+      }
+      setMerged(result);
     }
     setLoading(false);
   }, []);
 
   useEffect(() => {
     fetchForDate(currentDate);
-    // Check for date change every 30 seconds
     const interval = setInterval(() => {
       const now = new Date();
       if (format(now, 'yyyy-MM-dd') !== format(currentDate, 'yyyy-MM-dd')) {
@@ -124,5 +132,5 @@ export function usePrayerTimes() {
     return () => clearInterval(interval);
   }, [currentDate, fetchForDate]);
 
-  return { record, loading, error, currentDate };
+  return { merged, loading, error, currentDate };
 }

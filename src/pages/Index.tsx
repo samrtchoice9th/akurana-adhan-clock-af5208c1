@@ -1,6 +1,7 @@
 import { format } from 'date-fns';
 import { useClock } from '@/hooks/useClock';
 import { usePrayerTimes, getPrayerList, getNextPrayerIndex, getCountdown } from '@/hooks/usePrayerTimes';
+import { useHijriDate, formatHijriDate } from '@/hooks/useHijriDate';
 import { NextPrayerCard } from '@/components/NextPrayerCard';
 import { PrayerRow } from '@/components/PrayerRow';
 import { Settings } from 'lucide-react';
@@ -8,10 +9,12 @@ import { Link } from 'react-router-dom';
 
 const Index = () => {
   const now = useClock();
-  const { record, loading, error } = usePrayerTimes();
-  const prayers = getPrayerList(record);
+  const { merged, loading, error } = usePrayerTimes();
+  const { hijri } = useHijriDate();
+  const prayers = getPrayerList(merged);
   const nextIndex = getNextPrayerIndex(prayers, now);
   const countdown = getCountdown(prayers, nextIndex, now);
+  const hijriDisplay = formatHijriDate(hijri);
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center px-4 py-6 max-w-md mx-auto">
@@ -35,8 +38,8 @@ const Index = () => {
         <p className="text-sm text-muted-foreground mt-3">
           {format(now, 'EEEE, MMMM d, yyyy')}
         </p>
-        {record?.hijri_date && (
-          <p className="text-sm text-primary/80 mt-1">{record.hijri_date}</p>
+        {hijriDisplay && (
+          <p className="text-sm text-primary/80 mt-1">{hijriDisplay}</p>
         )}
       </header>
 

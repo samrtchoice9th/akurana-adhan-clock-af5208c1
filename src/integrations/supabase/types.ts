@@ -14,6 +14,69 @@ export type Database = {
   }
   public: {
     Tables: {
+      hijri_date: {
+        Row: {
+          created_at: string
+          hijri_day: number
+          hijri_month: number
+          hijri_year: number
+          id: string
+          last_updated: string
+        }
+        Insert: {
+          created_at?: string
+          hijri_day: number
+          hijri_month: number
+          hijri_year: number
+          id?: string
+          last_updated?: string
+        }
+        Update: {
+          created_at?: string
+          hijri_day?: number
+          hijri_month?: number
+          hijri_year?: number
+          id?: string
+          last_updated?: string
+        }
+        Relationships: []
+      }
+      prayer_time_changes: {
+        Row: {
+          asr_adhan: string | null
+          created_at: string
+          effective_from: string
+          id: string
+          isha_adhan: string | null
+          luhar_adhan: string | null
+          magrib_adhan: string | null
+          subah_adhan: string | null
+          sunrise: string | null
+        }
+        Insert: {
+          asr_adhan?: string | null
+          created_at?: string
+          effective_from: string
+          id?: string
+          isha_adhan?: string | null
+          luhar_adhan?: string | null
+          magrib_adhan?: string | null
+          subah_adhan?: string | null
+          sunrise?: string | null
+        }
+        Update: {
+          asr_adhan?: string | null
+          created_at?: string
+          effective_from?: string
+          id?: string
+          isha_adhan?: string | null
+          luhar_adhan?: string | null
+          magrib_adhan?: string | null
+          subah_adhan?: string | null
+          sunrise?: string | null
+        }
+        Relationships: []
+      }
       prayer_times: {
         Row: {
           asr_adhan: string | null
