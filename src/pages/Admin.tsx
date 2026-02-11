@@ -9,7 +9,8 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ArrowLeft, Lock, Upload, Moon, AlertTriangle, Plus, Save } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
-import { parseCsv, CsvChangeRow } from '@/lib/csvParser';
+import { CsvChangeRow } from '@/lib/csvParser';
+import { parseExcel } from '@/lib/excelParser';
 import { useHijriDate, formatHijriDate } from '@/hooks/useHijriDate';
 import { Label } from '@/components/ui/label';
 
@@ -65,7 +66,7 @@ export default function Admin() {
 
       <Tabs defaultValue="csv" className="w-full">
         <TabsList className="w-full">
-          <TabsTrigger value="csv" className="flex-1">CSV Upload</TabsTrigger>
+          <TabsTrigger value="csv" className="flex-1">Excel Upload</TabsTrigger>
           <TabsTrigger value="hijri" className="flex-1">Hijri Control</TabsTrigger>
         </TabsList>
 
@@ -102,7 +103,7 @@ function CsvUploadTab() {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
-      const result = parseCsv(reader.result as string);
+      const result = parseExcel(reader.result as ArrayBuffer);
       if (result.success) {
         setParsedRows(result.rows);
         setParseError(null);
@@ -111,7 +112,7 @@ function CsvUploadTab() {
         setParseError(result.error);
       }
     };
-    reader.readAsText(file);
+    reader.readAsArrayBuffer(file);
   };
 
   const handleSave = async () => {
@@ -158,8 +159,8 @@ function CsvUploadTab() {
       <Card className="bg-card border-border">
         <CardContent className="p-4 space-y-4">
           <div>
-            <Label className="text-foreground mb-2 block">Upload CSV File</Label>
-            <Input ref={fileRef} type="file" accept=".csv" onChange={handleFile} className="bg-muted border-border text-foreground" />
+            <Label className="text-foreground mb-2 block">Upload Excel File (.xlsx)</Label>
+            <Input ref={fileRef} type="file" accept=".xlsx,.xls" onChange={handleFile} className="bg-muted border-border text-foreground" />
           </div>
           {existingCount !== null && (
             <p className="text-xs text-muted-foreground">Current records in database: {existingCount}</p>
