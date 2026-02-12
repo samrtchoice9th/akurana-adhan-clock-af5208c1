@@ -1,13 +1,18 @@
-import { ArrowLeft, Palette, Layout, Check } from 'lucide-react';
+import { ArrowLeft, Palette, Layout, Check, Bell, Sun, Moon, Building2, Gem, Leaf } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Switch } from '@/components/ui/switch';
 import { useTheme, ThemeColor, DesignStyle } from '@/hooks/useTheme';
+import { useNotifications } from '@/hooks/useNotifications';
+import { usePrayerTimes, getPrayerList } from '@/hooks/usePrayerTimes';
 import { cn } from '@/lib/utils';
 
-const COLORS: { value: ThemeColor; label: string; preview: string }[] = [
-  { value: 'green', label: 'Emerald', preview: 'bg-[hsl(145,70%,45%)]' },
-  { value: 'blue', label: 'Ocean', preview: 'bg-[hsl(215,80%,55%)]' },
-  { value: 'dark', label: 'Midnight', preview: 'bg-[hsl(260,60%,50%)]' },
+const COLORS: { value: ThemeColor; label: string; desc: string; preview: string; icon: typeof Sun }[] = [
+  { value: 'light', label: 'Default Light', desc: 'Clean, professional light theme', preview: 'bg-[hsl(210,20%,98%)]', icon: Sun },
+  { value: 'navy', label: 'Dark Navy', desc: 'Dark blue professional', preview: 'bg-[hsl(222,47%,6%)]', icon: Moon },
+  { value: 'blue-finance', label: 'Blue Finance', desc: 'Corporate blue tones', preview: 'bg-[hsl(224,76%,48%)]', icon: Building2 },
+  { value: 'black-gold', label: 'Black Gold Premium', desc: 'Luxury dark with gold accents', preview: 'bg-[hsl(43,75%,46%)]', icon: Gem },
+  { value: 'teal', label: 'Teal Fresh', desc: 'Modern teal accents', preview: 'bg-[hsl(168,76%,36%)]', icon: Leaf },
 ];
 
 const STYLES: { value: DesignStyle; label: string; desc: string }[] = [
@@ -18,6 +23,9 @@ const STYLES: { value: DesignStyle; label: string; desc: string }[] = [
 
 export default function Settings() {
   const { color, style, setColor, setStyle } = useTheme();
+  const { merged } = usePrayerTimes();
+  const prayers = getPrayerList(merged);
+  const { enabled, permission, toggle } = useNotifications(prayers);
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center px-4 py-6 max-w-md mx-auto">
@@ -32,37 +40,41 @@ export default function Settings() {
       <Card className="w-full bg-card border-border mb-4">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm text-primary flex items-center gap-2">
-            <Palette className="h-4 w-4" /> Theme Color
+            <Palette className="h-4 w-4" /> Choose your preferred color theme
           </CardTitle>
         </CardHeader>
         <CardContent className="p-4 pt-0">
-          <div className="grid grid-cols-3 gap-3">
-            {COLORS.map(c => (
-              <button
-                key={c.value}
-                onClick={() => setColor(c.value)}
-                className={cn(
-                  'relative flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all duration-300',
-                  color === c.value
-                    ? 'border-primary bg-primary/10 shadow-[0_0_15px_hsl(var(--primary)/0.2)]'
-                    : 'border-border hover:border-muted-foreground bg-card'
-                )}
-              >
-                <div className={cn('h-10 w-10 rounded-full', c.preview)} />
-                <span className="text-xs font-medium text-foreground">{c.label}</span>
-                {color === c.value && (
-                  <div className="absolute top-1.5 right-1.5">
-                    <Check className="h-3.5 w-3.5 text-primary" />
+          <div className="space-y-2">
+            {COLORS.map(c => {
+              const Icon = c.icon;
+              return (
+                <button
+                  key={c.value}
+                  onClick={() => setColor(c.value)}
+                  className={cn(
+                    'w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all duration-300 text-left',
+                    color === c.value
+                      ? 'border-primary bg-primary/10'
+                      : 'border-border hover:border-muted-foreground bg-card'
+                  )}
+                >
+                  <div className={cn('h-10 w-10 rounded-full shrink-0 flex items-center justify-center', c.preview)}>
+                    <Icon className="h-5 w-5 text-white" />
                   </div>
-                )}
-              </button>
-            ))}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-foreground">{c.label}</p>
+                    <p className="text-xs text-muted-foreground">{c.desc}</p>
+                  </div>
+                  {color === c.value && <Check className="h-4 w-4 text-primary shrink-0" />}
+                </button>
+              );
+            })}
           </div>
         </CardContent>
       </Card>
 
       {/* Design Style */}
-      <Card className="w-full bg-card border-border">
+      <Card className="w-full bg-card border-border mb-4">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm text-primary flex items-center gap-2">
             <Layout className="h-4 w-4" /> Design Style
@@ -89,6 +101,34 @@ export default function Settings() {
               </button>
             ))}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Notifications */}
+      <Card className="w-full bg-card border-border">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm text-primary flex items-center gap-2">
+            <Bell className="h-4 w-4" /> Prayer Notifications
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-4 pt-0">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-foreground">5-minute reminder</p>
+              <p className="text-xs text-muted-foreground">Get notified before each prayer</p>
+            </div>
+            <Switch checked={enabled} onCheckedChange={toggle} />
+          </div>
+          {permission === 'denied' && (
+            <p className="text-xs text-destructive mt-2">
+              Notifications are blocked. Please enable them in your browser settings.
+            </p>
+          )}
+          {typeof Notification === 'undefined' && (
+            <p className="text-xs text-muted-foreground mt-2">
+              Install this app to your home screen to enable notifications.
+            </p>
+          )}
         </CardContent>
       </Card>
     </div>

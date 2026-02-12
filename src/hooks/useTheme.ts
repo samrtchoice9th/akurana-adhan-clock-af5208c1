@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 
-export type ThemeColor = 'green' | 'blue' | 'dark';
+export type ThemeColor = 'light' | 'navy' | 'blue-finance' | 'black-gold' | 'teal';
 export type DesignStyle = 'modern' | 'classic' | 'glass';
 
 interface ThemePreferences {
@@ -9,23 +9,35 @@ interface ThemePreferences {
 }
 
 const STORAGE_KEY = 'akurana-theme-prefs';
+const THEME_CLASSES: ThemeColor[] = ['light', 'navy', 'blue-finance', 'black-gold', 'teal'];
+const STYLE_CLASSES: DesignStyle[] = ['modern', 'classic', 'glass'];
 
-const defaultPrefs: ThemePreferences = { color: 'green', style: 'modern' };
+const defaultPrefs: ThemePreferences = { color: 'light', style: 'modern' };
 
 function loadPrefs(): ThemePreferences {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return { ...defaultPrefs, ...JSON.parse(raw) };
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      // Migrate old theme values
+      if (['green', 'blue', 'dark'].includes(parsed.color)) {
+        parsed.color = 'light';
+      }
+      return { ...defaultPrefs, ...parsed };
+    }
   } catch {}
   return defaultPrefs;
 }
 
 function applyTheme(prefs: ThemePreferences) {
   const root = document.documentElement;
+  THEME_CLASSES.forEach(c => root.classList.remove(`theme-${c}`));
+  STYLE_CLASSES.forEach(c => root.classList.remove(`style-${c}`));
 
-  // Remove previous classes
-  root.classList.remove('theme-green', 'theme-blue', 'theme-dark', 'style-modern', 'style-classic', 'style-glass');
-  root.classList.add(`theme-${prefs.color}`, `style-${prefs.style}`);
+  if (prefs.color !== 'light') {
+    root.classList.add(`theme-${prefs.color}`);
+  }
+  root.classList.add(`style-${prefs.style}`);
 }
 
 export function useTheme() {
@@ -47,7 +59,6 @@ export function useTheme() {
   return { ...prefs, setColor, setStyle };
 }
 
-// Initialize theme on app load (before React renders)
 export function initTheme() {
   const prefs = loadPrefs();
   applyTheme(prefs);

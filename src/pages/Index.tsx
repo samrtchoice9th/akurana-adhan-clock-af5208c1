@@ -2,6 +2,7 @@ import { format } from 'date-fns';
 import { useClock } from '@/hooks/useClock';
 import { usePrayerTimes, getPrayerList, getNextPrayerIndex, getCountdown } from '@/hooks/usePrayerTimes';
 import { useHijriDate, formatHijriDate } from '@/hooks/useHijriDate';
+import { useNotifications } from '@/hooks/useNotifications';
 import { NextPrayerCard } from '@/components/NextPrayerCard';
 import { PrayerRow } from '@/components/PrayerRow';
 import { Settings as SettingsIcon } from 'lucide-react';
@@ -15,6 +16,9 @@ const Index = () => {
   const nextIndex = getNextPrayerIndex(prayers, now);
   const countdown = getCountdown(prayers, nextIndex, now);
   const hijriDisplay = formatHijriDate(hijri);
+
+  // Initialize notifications (runs in background)
+  useNotifications(prayers);
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center px-4 py-6 max-w-md mx-auto">
@@ -54,12 +58,10 @@ const Index = () => {
         </div>
       ) : (
         <div className="w-full space-y-4">
-          {/* Next Prayer Card */}
           {nextIndex >= 0 && (
             <NextPrayerCard prayer={prayers[nextIndex]} countdown={countdown} />
           )}
 
-          {/* Column Headers */}
           <div className="flex items-center justify-between px-4 text-xs text-muted-foreground uppercase tracking-wider">
             <span>Prayer</span>
             <div className="flex items-center gap-6">
@@ -68,7 +70,6 @@ const Index = () => {
             </div>
           </div>
 
-          {/* Prayer List */}
           <div className="space-y-2">
             {prayers.map((prayer, i) => (
               <PrayerRow key={prayer.name} prayer={prayer} isNext={i === nextIndex} />

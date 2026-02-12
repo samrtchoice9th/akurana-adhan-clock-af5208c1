@@ -1,4 +1,4 @@
-const CACHE_NAME = 'akurana-prayer-v1';
+const CACHE_NAME = 'akurana-prayer-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -33,5 +33,17 @@ self.addEventListener('fetch', (event) => {
         return response;
       })
       .catch(() => caches.match(event.request))
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      if (clientList.length > 0) {
+        return clientList[0].focus();
+      }
+      return clients.openWindow('/');
+    })
   );
 });
