@@ -2,7 +2,7 @@ import { ArrowLeft, Palette, Layout, Check, Bell, Sun, Moon, Building2, Gem, Lea
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
-import { useTheme, ThemeColor, DesignStyle } from '@/hooks/useTheme';
+import { useTheme, ThemeColor, DesignStyle } from '@/hooks/useTheme.tsx';
 import { useNotifications } from '@/hooks/useNotifications';
 import { usePrayerTimes, getPrayerList } from '@/hooks/usePrayerTimes';
 import { cn } from '@/lib/utils';

@@ -208,14 +208,16 @@
   }
 
   body {
-    @apply bg-background text-foreground font-sans;
+    @apply text-foreground font-sans;
     font-family: 'Outfit', sans-serif;
+    background: transparent;
   }
 }
 
 /* Glass style card overrides */
 .style-glass .glass-card,
 .style-glass [data-slot="card"],
+.style-glass .rounded-lg.border.bg-card,
 .style-glass .bg-card {
   background: hsl(var(--card) / 0.6) !important;
   backdrop-filter: blur(16px);
