@@ -14,6 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
+      hijri_admin_log: {
+        Row: {
+          action: string
+          created_at: string
+          hijri_date_snapshot: string
+          id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          hijri_date_snapshot: string
+          id?: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          hijri_date_snapshot?: string
+          id?: string
+        }
+        Relationships: []
+      }
       hijri_date: {
         Row: {
           created_at: string

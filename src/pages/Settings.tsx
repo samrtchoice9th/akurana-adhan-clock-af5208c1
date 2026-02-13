@@ -22,7 +22,7 @@ const STYLES: { value: DesignStyle; label: string; desc: string }[] = [
 ];
 
 export default function Settings() {
-  const { color, style, setColor, setStyle } = useTheme();
+  const { color, style, isRamadan, setColor, setStyle } = useTheme();
   const { merged } = usePrayerTimes();
   const prayers = getPrayerList(merged);
   const { enabled, permission, toggle } = useNotifications(prayers);
@@ -35,6 +35,16 @@ export default function Settings() {
         </Link>
         <h1 className="text-lg font-bold text-primary tracking-wide">Settings</h1>
       </header>
+
+      {/* Ramadan Notice */}
+      {isRamadan && (
+        <Card className="w-full bg-primary/10 border-primary/30 mb-4">
+          <CardContent className="p-3 text-center">
+            <p className="text-sm font-medium text-primary">🌙 Ramadan theme is active</p>
+            <p className="text-xs text-muted-foreground">Your preference will resume after Ramadan</p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Theme Color */}
       <Card className="w-full bg-card border-border mb-4">

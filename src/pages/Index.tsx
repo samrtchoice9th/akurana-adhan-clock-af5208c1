@@ -1,32 +1,50 @@
+import { useEffect } from 'react';
 import { format } from 'date-fns';
 import { useClock } from '@/hooks/useClock';
 import { usePrayerTimes, getPrayerList, getNextPrayerIndex, getCountdown } from '@/hooks/usePrayerTimes';
 import { useHijriDate, formatHijriDate } from '@/hooks/useHijriDate';
 import { useNotifications } from '@/hooks/useNotifications';
+import { useTheme } from '@/hooks/useTheme';
 import { NextPrayerCard } from '@/components/NextPrayerCard';
 import { PrayerRow } from '@/components/PrayerRow';
-import { Settings as SettingsIcon } from 'lucide-react';
+import { JumuahBanner } from '@/components/JumuahBanner';
+import { Settings as SettingsIcon, Moon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const Index = () => {
   const now = useClock();
   const { merged, loading, error } = usePrayerTimes();
   const { hijri } = useHijriDate();
+  const { setIsRamadan, isRamadan } = useTheme();
   const prayers = getPrayerList(merged);
   const nextIndex = getNextPrayerIndex(prayers, now);
   const countdown = getCountdown(prayers, nextIndex, now);
   const hijriDisplay = formatHijriDate(hijri);
+
+  // Auto-activate Ramadan theme
+  useEffect(() => {
+    if (hijri) {
+      setIsRamadan(hijri.hijri_month === 9);
+    }
+  }, [hijri?.hijri_month, setIsRamadan]);
 
   // Initialize notifications (runs in background)
   useNotifications(prayers);
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center px-4 py-6 max-w-md mx-auto">
+      {/* Friday Banner */}
+      <JumuahBanner hijriDisplay={hijriDisplay} />
+
       {/* Header */}
       <header className="w-full text-center mb-6">
         <div className="flex items-center justify-between mb-4">
           <div className="w-8" />
-          <h1 className="text-lg font-bold text-primary tracking-wide">AKURANA PRAYER TIME</h1>
+          <div className="flex items-center gap-2">
+            {isRamadan && <Moon className="h-4 w-4 text-primary" />}
+            <h1 className="text-lg font-bold text-primary tracking-wide">AKURANA PRAYER TIME</h1>
+            {isRamadan && <Moon className="h-4 w-4 text-primary" />}
+          </div>
           <Link to="/settings" className="text-muted-foreground hover:text-foreground transition-colors">
             <SettingsIcon className="h-5 w-5" />
           </Link>

@@ -6,8 +6,10 @@ export type DesignStyle = 'modern' | 'classic' | 'glass';
 interface ThemeContextType {
   color: ThemeColor;
   style: DesignStyle;
+  isRamadan: boolean;
   setColor: (c: ThemeColor) => void;
   setStyle: (s: DesignStyle) => void;
+  setIsRamadan: (v: boolean) => void;
 }
 
 const STORAGE_KEY = 'akurana-theme-prefs';
@@ -24,6 +26,18 @@ function loadPrefs() {
   } catch {}
   return defaultPrefs;
 }
+
+const RAMADAN_VARS: Record<string, string> = {
+  '--background': '152 70% 10%', '--foreground': '43 20% 90%',
+  '--card': '152 50% 13%', '--card-foreground': '43 20% 90%',
+  '--popover': '152 50% 13%', '--popover-foreground': '43 20% 90%',
+  '--primary': '43 80% 50%', '--primary-foreground': '152 70% 10%',
+  '--secondary': '43 60% 40%', '--secondary-foreground': '0 0% 100%',
+  '--muted': '152 30% 18%', '--muted-foreground': '43 15% 55%',
+  '--accent': '43 80% 50%', '--accent-foreground': '152 70% 10%',
+  '--border': '152 25% 20%', '--input': '152 25% 20%',
+  '--ring': '43 80% 50%',
+};
 
 const THEME_VARS: Record<ThemeColor, Record<string, string>> = {
   light: {},
@@ -80,7 +94,7 @@ const STYLE_RADIUS: Record<DesignStyle, string> = {
 };
 
 const ThemeContext = createContext<ThemeContextType>({
-  ...defaultPrefs, setColor: () => {}, setStyle: () => {},
+  ...defaultPrefs, isRamadan: false, setColor: () => {}, setStyle: () => {}, setIsRamadan: () => {},
 });
 
 export function useTheme() {
@@ -89,6 +103,7 @@ export function useTheme() {
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [prefs, setPrefs] = useState(loadPrefs);
+  const [isRamadan, setIsRamadan] = useState(false);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
@@ -97,14 +112,15 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const setColor = useCallback((color: ThemeColor) => setPrefs(p => ({ ...p, color })), []);
   const setStyle = useCallback((style: DesignStyle) => setPrefs(p => ({ ...p, style })), []);
 
-  const vars = THEME_VARS[prefs.color];
+  // Use Ramadan vars when active, otherwise user selection
+  const vars = isRamadan ? RAMADAN_VARS : THEME_VARS[prefs.color];
   const styleVars: React.CSSProperties = { '--radius': STYLE_RADIUS[prefs.style] } as any;
   Object.entries(vars).forEach(([k, v]) => { (styleVars as any)[k] = v; });
 
   const styleClass = prefs.style === 'glass' ? 'style-glass' : '';
 
   return (
-    <ThemeContext.Provider value={{ ...prefs, setColor, setStyle }}>
+    <ThemeContext.Provider value={{ ...prefs, isRamadan, setColor, setStyle, setIsRamadan }}>
       <div className={`min-h-screen bg-background text-foreground ${styleClass}`} style={styleVars}>
         {children}
       </div>

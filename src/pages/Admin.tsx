@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { ArrowLeft, Lock, Upload, Moon, AlertTriangle, Plus, Save } from 'lucide-react';
+import { ArrowLeft, Lock, Upload, Moon, AlertTriangle, Clock, CheckCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { CsvChangeRow } from '@/lib/csvParser';
@@ -91,7 +91,6 @@ function CsvUploadTab() {
   const fileRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  // Load existing count on mount
   useState(() => {
     supabase.from('prayer_time_changes').select('id', { count: 'exact', head: true }).then(({ count }) => {
       setExistingCount(count ?? 0);
@@ -119,7 +118,6 @@ function CsvUploadTab() {
     if (!parsedRows) return;
     setSaving(true);
 
-    // Delete all existing rows
     const { error: delErr } = await supabase.from('prayer_time_changes').delete().gte('effective_from', '1900-01-01');
     if (delErr) {
       toast({ title: 'Error clearing existing data', description: delErr.message, variant: 'destructive' });
@@ -127,7 +125,6 @@ function CsvUploadTab() {
       return;
     }
 
-    // Insert new rows in batches of 50
     for (let i = 0; i < parsedRows.length; i += 50) {
       const batch = parsedRows.slice(i, i + 50).map(r => ({
         effective_from: r.effective_from,
@@ -226,26 +223,33 @@ function CsvUploadTab() {
 
 /* =================== Hijri Control Tab =================== */
 
+interface AdminLogEntry {
+  id: string;
+  action: string;
+  hijri_date_snapshot: string;
+  created_at: string;
+}
+
 function HijriControlTab() {
-  const { hijri, loading, updateHijri, incrementDay, moonSighted, moonNotSighted } = useHijriDate();
+  const { hijri, loading, moonSighted, moonNotSighted, logAdminAction } = useHijriDate();
   const { toast } = useToast();
-  const [manualYear, setManualYear] = useState('');
-  const [manualMonth, setManualMonth] = useState('');
-  const [manualDay, setManualDay] = useState('');
+  const [logs, setLogs] = useState<AdminLogEntry[]>([]);
+
+  useEffect(() => {
+    supabase
+      .from('hijri_admin_log')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(10)
+      .then(({ data }) => {
+        if (data) setLogs(data as AdminLogEntry[]);
+      });
+  }, []);
 
   if (loading) return <p className="text-muted-foreground mt-4">Loading...</p>;
   if (!hijri) return <p className="text-muted-foreground mt-4">No Hijri date record found.</p>;
 
-  const handleManualSave = async () => {
-    const y = parseInt(manualYear); const m = parseInt(manualMonth); const d = parseInt(manualDay);
-    if (!y || !m || !d || m < 1 || m > 12 || d < 1 || d > 30) {
-      toast({ title: 'Invalid values', variant: 'destructive' });
-      return;
-    }
-    const err = await updateHijri(y, m, d);
-    if (err) toast({ title: 'Error', description: (err as any).message, variant: 'destructive' });
-    else toast({ title: 'Hijri date updated' });
-  };
+  const isDay29 = hijri.hijri_day === 29;
 
   return (
     <div className="space-y-4 mt-4">
@@ -258,67 +262,98 @@ function HijriControlTab() {
         </CardContent>
       </Card>
 
-      {/* Day 29 Alert */}
-      {hijri.hijri_day === 29 && (
+      {/* Day 29 Controls or Auto-increment message */}
+      {isDay29 ? (
         <Alert className="border-secondary bg-secondary/10">
           <Moon className="h-4 w-4 text-secondary" />
-          <AlertTitle className="text-secondary">Hijri Month Day 29 Reached</AlertTitle>
+          <AlertTitle className="text-secondary">Hijri Day 29 Reached</AlertTitle>
           <AlertDescription className="text-foreground">
-            Moon sighting not confirmed. Choose an action:
+            Moon sighting confirmation required. Choose an action:
           </AlertDescription>
-          <div className="flex gap-2 mt-3">
-            <Button size="sm" className="flex-1" onClick={async () => {
+          <div className="flex flex-col gap-2 mt-3">
+            <Button size="sm" className="w-full" onClick={async () => {
               const err = await moonSighted();
-              if (err) toast({ title: 'Error', variant: 'destructive' });
-              else toast({ title: 'Moon Sighted — New month started' });
+              if (!err) {
+                await logAdminAction('moon_sighted');
+                toast({ title: '🌙 Moon Sighted — New month started' });
+                // Refresh logs
+                const { data } = await supabase.from('hijri_admin_log').select('*').order('created_at', { ascending: false }).limit(10);
+                if (data) setLogs(data as AdminLogEntry[]);
+              } else {
+                toast({ title: 'Error', variant: 'destructive' });
+              }
             }}>
-              ✅ Moon Sighted
+              🌙 Moon Sighted
             </Button>
-            <Button size="sm" variant="outline" className="flex-1" onClick={async () => {
+            <Button size="sm" variant="outline" className="w-full" onClick={async () => {
               const err = await moonNotSighted();
-              if (err) toast({ title: 'Error', variant: 'destructive' });
-              else toast({ title: 'Moon Not Sighted — Day 30' });
+              if (!err) {
+                await logAdminAction('moon_not_sighted');
+                toast({ title: '❌ Moon Not Sighted — Day 30 set' });
+                const { data } = await supabase.from('hijri_admin_log').select('*').order('created_at', { ascending: false }).limit(10);
+                if (data) setLogs(data as AdminLogEntry[]);
+              } else {
+                toast({ title: 'Error', variant: 'destructive' });
+              }
             }}>
-              ❌ Not Sighted
+              ❌ Moon Not Sighted
+            </Button>
+            <Button size="sm" variant="ghost" className="w-full" onClick={async () => {
+              await logAdminAction('decide_later');
+              toast({ title: '⏳ Decision deferred — system will auto-increment tomorrow' });
+              const { data } = await supabase.from('hijri_admin_log').select('*').order('created_at', { ascending: false }).limit(10);
+              if (data) setLogs(data as AdminLogEntry[]);
+            }}>
+              ⏳ Decide Later
             </Button>
           </div>
         </Alert>
+      ) : (
+        <Card className="bg-card border-border">
+          <CardContent className="p-4 flex items-center gap-3">
+            <CheckCircle className="h-5 w-5 text-primary shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-foreground">Auto-increment active</p>
+              <p className="text-xs text-muted-foreground">Admin action available on day 29.</p>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
-      {/* Increment button */}
-      <Button className="w-full" variant="outline" onClick={async () => {
-        const err = await incrementDay();
-        if (err) toast({ title: 'Error', variant: 'destructive' });
-        else toast({ title: 'Hijri day incremented' });
-      }}>
-        <Plus className="mr-2 h-4 w-4" /> Advance Hijri Day by 1
-      </Button>
-
-      {/* Manual override */}
-      <Card className="bg-card border-border">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm text-primary">Manual Override</CardTitle>
-        </CardHeader>
-        <CardContent className="p-4 space-y-3">
-          <div className="grid grid-cols-3 gap-2">
-            <div>
-              <Label className="text-xs text-muted-foreground">Year</Label>
-              <Input placeholder="1447" value={manualYear} onChange={e => setManualYear(e.target.value)} className="bg-muted border-border text-foreground font-mono" />
+      {/* Admin Action Log */}
+      {logs.length > 0 && (
+        <Card className="bg-card border-border">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-primary flex items-center gap-2">
+              <Clock className="h-4 w-4" /> Admin Action Log
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="max-h-48 overflow-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-xs">Action</TableHead>
+                    <TableHead className="text-xs">Date Snapshot</TableHead>
+                    <TableHead className="text-xs">Time</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {logs.map(log => (
+                    <TableRow key={log.id}>
+                      <TableCell className="text-xs font-mono">{log.action}</TableCell>
+                      <TableCell className="text-xs">{log.hijri_date_snapshot}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {new Date(log.created_at).toLocaleString()}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
-            <div>
-              <Label className="text-xs text-muted-foreground">Month</Label>
-              <Input placeholder="1-12" value={manualMonth} onChange={e => setManualMonth(e.target.value)} className="bg-muted border-border text-foreground font-mono" />
-            </div>
-            <div>
-              <Label className="text-xs text-muted-foreground">Day</Label>
-              <Input placeholder="1-30" value={manualDay} onChange={e => setManualDay(e.target.value)} className="bg-muted border-border text-foreground font-mono" />
-            </div>
-          </div>
-          <Button className="w-full" size="sm" onClick={handleManualSave}>
-            <Save className="mr-2 h-4 w-4" /> Save Manual Override
-          </Button>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
