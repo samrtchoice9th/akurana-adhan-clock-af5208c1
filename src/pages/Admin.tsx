@@ -372,14 +372,21 @@ function HadithTab() {
   const [currentHadith, setCurrentHadith] = useState<{ id: string; hadith_tamil: string; hadith_english: string | null; reference: string | null } | null>(null);
 
   const fetchActive = useCallback(async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('hadiths')
       .select('id, hadith_tamil, hadith_english, reference')
       .eq('is_active', true)
+      .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-    setCurrentHadith(data as typeof currentHadith);
-  }, []);
+
+    if (error) {
+      toast({ title: 'Error loading active hadith', description: error.message, variant: 'destructive' });
+      return;
+    }
+
+    setCurrentHadith(data as { id: string; hadith_tamil: string; hadith_english: string | null; reference: string | null } | null);
+  }, [toast]);
 
   useEffect(() => { fetchActive(); }, [fetchActive]);
 
@@ -392,7 +399,16 @@ function HadithTab() {
 
     // Deactivate all if this one is active
     if (isActive) {
-      await supabase.from('hadiths').update({ is_active: false }).eq('is_active', true);
+      const { error: deactivateError } = await supabase
+        .from('hadiths')
+        .update({ is_active: false })
+        .eq('is_active', true);
+
+      if (deactivateError) {
+        toast({ title: 'Error updating previous hadith', description: deactivateError.message, variant: 'destructive' });
+        setSaving(false);
+        return;
+      }
     }
 
     const { error } = await supabase.from('hadiths').insert({

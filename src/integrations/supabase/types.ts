@@ -41,6 +41,105 @@ export type Database = {
         }
         Relationships: []
       }
+      daily_prayer_times: {
+        Row: {
+          asr: string
+          created_at: string
+          date: string
+          dhuhr: string
+          fajr: string
+          id: string
+          isha: string
+          maghrib: string
+        }
+        Insert: {
+          asr: string
+          created_at?: string
+          date: string
+          dhuhr: string
+          fajr: string
+          id?: string
+          isha: string
+          maghrib: string
+        }
+        Update: {
+          asr?: string
+          created_at?: string
+          date?: string
+          dhuhr?: string
+          fajr?: string
+          id?: string
+          isha?: string
+          maghrib?: string
+        }
+        Relationships: []
+      }
+      notification_sent_log: {
+        Row: {
+          created_at: string
+          dedupe_key: string
+          id: string
+          prayer_name: string
+          reminder_type: string
+          sent_at: string
+          token: string
+        }
+        Insert: {
+          created_at?: string
+          dedupe_key: string
+          id?: string
+          prayer_name: string
+          reminder_type: string
+          sent_at?: string
+          token: string
+        }
+        Update: {
+          created_at?: string
+          dedupe_key?: string
+          id?: string
+          prayer_name?: string
+          reminder_type?: string
+          sent_at?: string
+          token?: string
+        }
+        Relationships: []
+      }
+      users_push_tokens: {
+        Row: {
+          created_at: string
+          device_id: string
+          id: string
+          location: string | null
+          notifications_enabled: boolean
+          platform: string | null
+          reminder_type: string
+          token: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          device_id: string
+          id?: string
+          location?: string | null
+          notifications_enabled?: boolean
+          platform?: string | null
+          reminder_type: string
+          token: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          device_id?: string
+          id?: string
+          location?: string | null
+          notifications_enabled?: boolean
+          platform?: string | null
+          reminder_type?: string
+          token?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       hijri_admin_log: {
         Row: {
           action: string

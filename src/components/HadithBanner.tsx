@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { X } from 'lucide-react';
 
@@ -11,31 +11,31 @@ interface Hadith {
 
 export function HadithBanner() {
   const [hadith, setHadith] = useState<Hadith | null>(null);
-  const [visible, setVisible] = useState(false);
   const [dismissed, setDismissed] = useState(false);
 
-  useEffect(() => {
-    supabase
+  const fetchActiveHadith = useCallback(async () => {
+    const { data, error } = await supabase
       .from('hadiths')
       .select('id, hadith_english, hadith_tamil, reference')
       .eq('is_active', true)
+      .order('created_at', { ascending: false })
       .limit(1)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data) {
-          setHadith(data as Hadith);
-          setVisible(true);
-        }
-      });
+      .maybeSingle();
+
+    if (error) {
+      console.error('Failed to load active hadith:', error.message);
+      setHadith(null);
+      return;
+    }
+
+    setHadith((data as Hadith) ?? null);
   }, []);
 
   useEffect(() => {
-    if (!visible) return;
-    const timer = setTimeout(() => setVisible(false), 15000);
-    return () => clearTimeout(timer);
-  }, [visible]);
+    fetchActiveHadith();
+  }, [fetchActiveHadith]);
 
-  if (!hadith || dismissed || !visible) return null;
+  if (!hadith || dismissed) return null;
 
   return (
     <div className="w-full mb-4 animate-in slide-in-from-top duration-500 rounded-xl border border-primary/30 bg-primary/10 p-4 relative">
