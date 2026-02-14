@@ -18,7 +18,7 @@ const Index = () => {
   const { merged, loading, error } = usePrayerTimes();
   const { hijri } = useHijriDate();
   const { setIsRamadan, isRamadan } = useTheme();
-  const { offsetMinutes } = useLocation();
+  const { offsetMinutes, location } = useLocation();
   const prayers = getPrayerList(merged, offsetMinutes);
   const nextIndex = getNextPrayerIndex(prayers, now);
   const countdown = getCountdown(prayers, nextIndex, now);
@@ -32,8 +32,8 @@ const Index = () => {
     }
   }, [hijri?.hijri_month, setIsRamadan]);
 
-  // Initialize notifications (runs in background)
-  useNotifications(prayers);
+  // Initialize FCM notification permission flow on first app open
+  useNotifications(location, true);
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center px-4 py-6 max-w-md mx-auto">
