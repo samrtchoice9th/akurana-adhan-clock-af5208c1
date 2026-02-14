@@ -16,12 +16,38 @@ import { parseExcel } from '@/lib/excelParser';
 import { useHijriDate, formatHijriDate } from '@/hooks/useHijriDate';
 import { Label } from '@/components/ui/label';
 
-const ADMIN_PASSWORD = 'akurana2026';
+const ADMIN_PASSWORD_HASH = import.meta.env.VITE_ADMIN_PASSWORD_HASH;
+
+async function sha256Hex(value: string): Promise<string> {
+  const bytes = new TextEncoder().encode(value);
+  const hash = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(hash)).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
 
 export default function Admin() {
   const [authenticated, setAuthenticated] = useState(false);
   const [password, setPassword] = useState('');
+  const [authenticating, setAuthenticating] = useState(false);
   const { toast } = useToast();
+
+  const authenticate = useCallback(async () => {
+    if (!ADMIN_PASSWORD_HASH) {
+      toast({ title: 'Admin password hash is not configured', variant: 'destructive' });
+      return;
+    }
+
+    setAuthenticating(true);
+    try {
+      const passwordHash = await sha256Hex(password);
+      if (passwordHash === ADMIN_PASSWORD_HASH.toLowerCase()) {
+        setAuthenticated(true);
+        return;
+      }
+      toast({ title: 'Wrong password', variant: 'destructive' });
+    } finally {
+      setAuthenticating(false);
+    }
+  }, [password, toast]);
 
   if (!authenticated) {
     return (
@@ -38,15 +64,12 @@ export default function Admin() {
               value={password}
               onChange={e => setPassword(e.target.value)}
               onKeyDown={e => {
-                if (e.key === 'Enter' && password === ADMIN_PASSWORD) setAuthenticated(true);
+                if (e.key === 'Enter') void authenticate();
               }}
               className="bg-muted border-border text-foreground"
             />
-            <Button className="w-full" onClick={() => {
-              if (password === ADMIN_PASSWORD) setAuthenticated(true);
-              else toast({ title: 'Wrong password', variant: 'destructive' });
-            }}>
-              Enter
+            <Button className="w-full" onClick={() => void authenticate()} disabled={authenticating}>
+              {authenticating ? 'Checking...' : 'Enter'}
             </Button>
             <Link to="/" className="block text-center text-sm text-muted-foreground hover:text-foreground transition-colors">
               ← Back to Prayer Times
@@ -372,14 +395,21 @@ function HadithTab() {
   const [currentHadith, setCurrentHadith] = useState<{ id: string; hadith_tamil: string; hadith_english: string | null; reference: string | null } | null>(null);
 
   const fetchActive = useCallback(async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('hadiths')
       .select('id, hadith_tamil, hadith_english, reference')
       .eq('is_active', true)
+      .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-    setCurrentHadith(data as typeof currentHadith);
-  }, []);
+
+    if (error) {
+      toast({ title: 'Error loading active hadith', description: error.message, variant: 'destructive' });
+      return;
+    }
+
+    setCurrentHadith(data as { id: string; hadith_tamil: string; hadith_english: string | null; reference: string | null } | null);
+  }, [toast]);
 
   useEffect(() => { fetchActive(); }, [fetchActive]);
 
@@ -392,7 +422,16 @@ function HadithTab() {
 
     // Deactivate all if this one is active
     if (isActive) {
-      await supabase.from('hadiths').update({ is_active: false }).eq('is_active', true);
+      const { error: deactivateError } = await supabase
+        .from('hadiths')
+        .update({ is_active: false })
+        .eq('is_active', true);
+
+      if (deactivateError) {
+        toast({ title: 'Error updating previous hadith', description: deactivateError.message, variant: 'destructive' });
+        setSaving(false);
+        return;
+      }
     }
 
     const { error } = await supabase.from('hadiths').insert({

@@ -71,3 +71,57 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+
+## Firebase Cloud Messaging (FCM) setup
+
+This project now uses real background push reminders via Firebase Cloud Messaging.
+
+### Frontend env vars
+
+Create a `.env` with:
+
+- `VITE_FIREBASE_API_KEY`
+- `VITE_FIREBASE_AUTH_DOMAIN`
+- `VITE_FIREBASE_PROJECT_ID`
+- `VITE_FIREBASE_STORAGE_BUCKET`
+- `VITE_FIREBASE_MESSAGING_SENDER_ID`
+- `VITE_FIREBASE_APP_ID`
+- `VITE_FIREBASE_VAPID_KEY`
+
+Also update `public/firebase-messaging-sw.js` with the same Firebase web config values.
+
+### Backend scheduler (Firebase Cloud Functions)
+
+Cloud function source is under `firebase/functions/index.js`.
+
+Required env vars for function runtime:
+
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+
+Deploy command example:
+
+```sh
+cd firebase/functions
+npm install
+firebase deploy --only functions:sendPrayerReminders
+```
+
+The scheduled function runs every minute and sends reminders based on:
+
+- `daily_prayer_times`
+- `users_push_tokens`
+- `notification_sent_log` (dedupe)
+
+### Admin password security
+
+Do not hardcode plaintext admin passwords in source.
+Set a SHA-256 hash in environment variable:
+
+- `VITE_ADMIN_PASSWORD_HASH`
+
+Generate hash example:
+
+```sh
+node -e "const c=require('crypto');console.log(c.createHash('sha256').update('your-password').digest('hex'))"
+```
