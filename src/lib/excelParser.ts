@@ -38,8 +38,8 @@ function normalizeTime(raw: string, prayerIndex: number): string {
     case 1: // Sunrise - always AM
       meridiem = 'AM';
       break;
-    case 2: // Luhar - < 12 = AM, >= 12 = PM
-      meridiem = hour < 12 ? 'AM' : 'PM';
+    case 2: // Luhar - can be late morning (e.g. 11:50 AM) or afternoon
+      meridiem = hour === 12 || (hour >= 1 && hour <= 4) ? 'PM' : 'AM';
       break;
     case 3: // Asr - always PM
     case 4: // Magrib - always PM
