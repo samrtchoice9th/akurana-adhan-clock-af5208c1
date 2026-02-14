@@ -2,28 +2,37 @@
 importScripts('https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.12.5/firebase-messaging-compat.js');
 
-firebase.initializeApp({
-  apiKey: 'REPLACE_WITH_FIREBASE_API_KEY',
-  authDomain: 'REPLACE_WITH_FIREBASE_AUTH_DOMAIN',
-  projectId: 'REPLACE_WITH_FIREBASE_PROJECT_ID',
-  storageBucket: 'REPLACE_WITH_FIREBASE_STORAGE_BUCKET',
-  messagingSenderId: 'REPLACE_WITH_FIREBASE_MESSAGING_SENDER_ID',
-  appId: 'REPLACE_WITH_FIREBASE_APP_ID',
-});
+const configUrl = new URL(self.location.href);
+const firebaseConfig = {
+  apiKey: configUrl.searchParams.get('apiKey') || '',
+  authDomain: configUrl.searchParams.get('authDomain') || '',
+  projectId: configUrl.searchParams.get('projectId') || '',
+  storageBucket: configUrl.searchParams.get('storageBucket') || '',
+  messagingSenderId: configUrl.searchParams.get('messagingSenderId') || '',
+  appId: configUrl.searchParams.get('appId') || '',
+};
 
-const messaging = firebase.messaging();
+if (Object.values(firebaseConfig).every(Boolean)) {
+  firebase.initializeApp(firebaseConfig);
+} else {
+  console.error('[firebase-messaging-sw] Missing Firebase config in service worker registration URL.');
+}
 
-messaging.onBackgroundMessage((payload) => {
-  const title = payload.notification?.title || 'Fajr in 5 minutes';
-  const options = {
-    body: payload.notification?.body || 'Prepare for Sunnah Salah',
-    icon: '/icons/icon-192.png',
-    badge: '/icons/icon-192.png',
-    data: payload.data || {},
-  };
+const messaging = firebase.apps.length ? firebase.messaging() : null;
 
-  self.registration.showNotification(title, options);
-});
+if (messaging) {
+  messaging.onBackgroundMessage((payload) => {
+    const title = payload.notification?.title || 'Fajr in 5 minutes';
+    const options = {
+      body: payload.notification?.body || 'Prepare for Sunnah Salah',
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
+      data: payload.data || {},
+    };
+
+    self.registration.showNotification(title, options);
+  });
+}
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();

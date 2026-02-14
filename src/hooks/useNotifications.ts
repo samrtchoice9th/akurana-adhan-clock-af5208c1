@@ -45,6 +45,19 @@ function getReminderTypes(prefs: NotificationPrefs): ReminderType[] {
 
 const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent);
 
+function getMessagingServiceWorkerUrl() {
+  const params = new URLSearchParams({
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY ?? '',
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ?? '',
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID ?? '',
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET ?? '',
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID ?? '',
+    appId: import.meta.env.VITE_FIREBASE_APP_ID ?? '',
+  });
+
+  return `/firebase-messaging-sw.js?${params.toString()}`;
+}
+
 export function useNotifications(location: string, autoPrompt = false) {
   const [enabled, setEnabled] = useState(false);
   const [permission, setPermission] = useState<NotificationPermission>(
@@ -91,7 +104,7 @@ export function useNotifications(location: string, autoPrompt = false) {
       setPermission(perm);
       if (perm !== 'granted') return;
 
-      const swReg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+      const swReg = await navigator.serviceWorker.register(getMessagingServiceWorkerUrl());
       const messaging = await getFirebaseMessaging();
       if (!messaging) return;
 
