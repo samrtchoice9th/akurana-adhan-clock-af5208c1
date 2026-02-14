@@ -1,13 +1,15 @@
 import { useEffect } from 'react';
 import { format } from 'date-fns';
 import { useClock } from '@/hooks/useClock';
-import { usePrayerTimes, getPrayerList, getNextPrayerIndex, getCountdown } from '@/hooks/usePrayerTimes';
+import { usePrayerTimes, getPrayerList, getNextPrayerIndex, getCountdown, getPrayerPhase } from '@/hooks/usePrayerTimes';
 import { useHijriDate, formatHijriDate } from '@/hooks/useHijriDate';
 import { useNotifications } from '@/hooks/useNotifications';
 import { useTheme } from '@/hooks/useTheme';
+import { useLocation } from '@/hooks/useLocation';
 import { NextPrayerCard } from '@/components/NextPrayerCard';
 import { PrayerRow } from '@/components/PrayerRow';
 import { JumuahBanner } from '@/components/JumuahBanner';
+import { HadithBanner } from '@/components/HadithBanner';
 import { Settings as SettingsIcon, Moon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -16,9 +18,11 @@ const Index = () => {
   const { merged, loading, error } = usePrayerTimes();
   const { hijri } = useHijriDate();
   const { setIsRamadan, isRamadan } = useTheme();
-  const prayers = getPrayerList(merged);
+  const { offsetMinutes } = useLocation();
+  const prayers = getPrayerList(merged, offsetMinutes);
   const nextIndex = getNextPrayerIndex(prayers, now);
   const countdown = getCountdown(prayers, nextIndex, now);
+  const phase = nextIndex >= 0 ? getPrayerPhase(prayers[nextIndex], now) : 'passed';
   const hijriDisplay = formatHijriDate(hijri);
 
   // Auto-activate Ramadan theme
@@ -33,6 +37,9 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center px-4 py-6 max-w-md mx-auto">
+      {/* Hadith Banner */}
+      <HadithBanner />
+
       {/* Friday Banner */}
       <JumuahBanner hijriDisplay={hijriDisplay} />
 
@@ -77,7 +84,7 @@ const Index = () => {
       ) : (
         <div className="w-full space-y-4">
           {nextIndex >= 0 && (
-            <NextPrayerCard prayer={prayers[nextIndex]} countdown={countdown} />
+            <NextPrayerCard prayer={prayers[nextIndex]} countdown={countdown} phase={phase} />
           )}
 
           <div className="flex items-center justify-between px-4 text-xs text-muted-foreground uppercase tracking-wider">

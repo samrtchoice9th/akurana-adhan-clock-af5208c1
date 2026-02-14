@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 const HIJRI_MONTHS: Record<number, string> = {
@@ -46,6 +46,7 @@ function advanceHijri(y: number, m: number, d: number, days: number) {
 export function useHijriDate() {
   const [hijri, setHijri] = useState<HijriState | null>(null);
   const [loading, setLoading] = useState(true);
+  const midnightRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchAndAutoIncrement = useCallback(async () => {
     const { data } = await supabase.from('hijri_date').select('*').limit(1).maybeSingle();
@@ -68,7 +69,20 @@ export function useHijriDate() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { fetchAndAutoIncrement(); }, [fetchAndAutoIncrement]);
+  useEffect(() => {
+    fetchAndAutoIncrement();
+
+    // Check every 30s for midnight crossing so Hijri updates without reload
+    const checkInterval = setInterval(() => {
+      const now = new Date();
+      if (now.getHours() === 0 && now.getMinutes() < 2) {
+        fetchAndAutoIncrement();
+      }
+    }, 30000);
+    midnightRef.current = checkInterval;
+
+    return () => clearInterval(checkInterval);
+  }, [fetchAndAutoIncrement]);
 
   const updateHijri = useCallback(async (year: number, month: number, day: number) => {
     if (!hijri) return;

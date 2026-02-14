@@ -59,13 +59,25 @@ export function useNotifications(prayers: PrayerEntry[]) {
         const mins = parseTimeToMinutes(prayer.adhan);
         if (mins === null) continue;
         const diff = mins - currentMinutes;
-        if (diff === 5 && !firedRef.current.has(prayer.name)) {
+        // Range check: fire if within 1-5 minutes before adhan
+        if (diff > 0 && diff <= 5 && !firedRef.current.has(prayer.name)) {
           firedRef.current.add(prayer.name);
-          new Notification('Akurana Prayer App', {
-            body: `${prayer.name} Adhan in 5 minutes`,
-            icon: '/icons/icon-192.png',
-            tag: `prayer-${prayer.name}`,
-          });
+          // Use service worker showNotification for better PWA support
+          if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.ready.then(reg => {
+              reg.showNotification('Akurana Prayer App', {
+                body: `${prayer.name} Adhan in ${diff} minute${diff > 1 ? 's' : ''}`,
+                icon: '/icons/icon-192.png',
+                tag: `prayer-${prayer.name}`,
+              });
+            });
+          } else {
+            new Notification('Akurana Prayer App', {
+              body: `${prayer.name} Adhan in ${diff} minute${diff > 1 ? 's' : ''}`,
+              icon: '/icons/icon-192.png',
+              tag: `prayer-${prayer.name}`,
+            });
+          }
         }
       }
     };

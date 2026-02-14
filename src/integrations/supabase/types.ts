@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      hadiths: {
+        Row: {
+          created_at: string
+          hadith_english: string | null
+          hadith_tamil: string
+          id: string
+          is_active: boolean
+          reference: string | null
+        }
+        Insert: {
+          created_at?: string
+          hadith_english?: string | null
+          hadith_tamil: string
+          id?: string
+          is_active?: boolean
+          reference?: string | null
+        }
+        Update: {
+          created_at?: string
+          hadith_english?: string | null
+          hadith_tamil?: string
+          id?: string
+          is_active?: boolean
+          reference?: string | null
+        }
+        Relationships: []
+      }
       hijri_admin_log: {
         Row: {
           action: string

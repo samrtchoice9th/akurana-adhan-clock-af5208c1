@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,7 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { ArrowLeft, Lock, Upload, Moon, AlertTriangle, Clock, CheckCircle } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
+import { ArrowLeft, Lock, Upload, Moon, AlertTriangle, Clock, CheckCircle, BookOpen } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { CsvChangeRow } from '@/lib/csvParser';
@@ -68,6 +70,7 @@ export default function Admin() {
         <TabsList className="w-full">
           <TabsTrigger value="csv" className="flex-1">Excel Upload</TabsTrigger>
           <TabsTrigger value="hijri" className="flex-1">Hijri Control</TabsTrigger>
+          <TabsTrigger value="hadith" className="flex-1">Hadith</TabsTrigger>
         </TabsList>
 
         <TabsContent value="csv">
@@ -75,6 +78,9 @@ export default function Admin() {
         </TabsContent>
         <TabsContent value="hijri">
           <HijriControlTab />
+        </TabsContent>
+        <TabsContent value="hadith">
+          <HadithTab />
         </TabsContent>
       </Tabs>
     </div>
@@ -253,7 +259,6 @@ function HijriControlTab() {
 
   return (
     <div className="space-y-4 mt-4">
-      {/* Current display */}
       <Card className="bg-card border-border">
         <CardContent className="p-4 text-center">
           <p className="text-xs text-muted-foreground mb-1">Current Hijri Date</p>
@@ -262,7 +267,6 @@ function HijriControlTab() {
         </CardContent>
       </Card>
 
-      {/* Day 29 Controls or Auto-increment message */}
       {isDay29 ? (
         <Alert className="border-secondary bg-secondary/10">
           <Moon className="h-4 w-4 text-secondary" />
@@ -276,7 +280,6 @@ function HijriControlTab() {
               if (!err) {
                 await logAdminAction('moon_sighted');
                 toast({ title: '🌙 Moon Sighted — New month started' });
-                // Refresh logs
                 const { data } = await supabase.from('hijri_admin_log').select('*').order('created_at', { ascending: false }).limit(10);
                 if (data) setLogs(data as AdminLogEntry[]);
               } else {
@@ -320,7 +323,6 @@ function HijriControlTab() {
         </Card>
       )}
 
-      {/* Admin Action Log */}
       {logs.length > 0 && (
         <Card className="bg-card border-border">
           <CardHeader className="pb-2">
@@ -354,6 +356,128 @@ function HijriControlTab() {
           </CardContent>
         </Card>
       )}
+    </div>
+  );
+}
+
+/* =================== Hadith Tab =================== */
+
+function HadithTab() {
+  const { toast } = useToast();
+  const [hadithTamil, setHadithTamil] = useState('');
+  const [hadithEnglish, setHadithEnglish] = useState('');
+  const [reference, setReference] = useState('');
+  const [isActive, setIsActive] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [currentHadith, setCurrentHadith] = useState<{ id: string; hadith_tamil: string; hadith_english: string | null; reference: string | null } | null>(null);
+
+  const fetchActive = useCallback(async () => {
+    const { data } = await supabase
+      .from('hadiths')
+      .select('id, hadith_tamil, hadith_english, reference')
+      .eq('is_active', true)
+      .limit(1)
+      .maybeSingle();
+    setCurrentHadith(data as typeof currentHadith);
+  }, []);
+
+  useEffect(() => { fetchActive(); }, [fetchActive]);
+
+  const handleSave = async () => {
+    if (!hadithTamil.trim()) {
+      toast({ title: 'Tamil text is required', variant: 'destructive' });
+      return;
+    }
+    setSaving(true);
+
+    // Deactivate all if this one is active
+    if (isActive) {
+      await supabase.from('hadiths').update({ is_active: false }).eq('is_active', true);
+    }
+
+    const { error } = await supabase.from('hadiths').insert({
+      hadith_tamil: hadithTamil.trim(),
+      hadith_english: hadithEnglish.trim() || null,
+      reference: reference.trim() || null,
+      is_active: isActive,
+    });
+
+    if (error) {
+      toast({ title: 'Error saving hadith', description: error.message, variant: 'destructive' });
+    } else {
+      toast({ title: 'Hadith saved successfully' });
+      setHadithTamil('');
+      setHadithEnglish('');
+      setReference('');
+      fetchActive();
+    }
+    setSaving(false);
+  };
+
+  return (
+    <div className="space-y-4 mt-4">
+      {currentHadith && (
+        <Card className="bg-card border-border">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-primary flex items-center gap-2">
+              <BookOpen className="h-4 w-4" /> Current Active Hadith
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <p className="text-sm text-foreground">{currentHadith.hadith_tamil}</p>
+            {currentHadith.hadith_english && (
+              <p className="text-xs text-muted-foreground mt-1 italic">{currentHadith.hadith_english}</p>
+            )}
+            {currentHadith.reference && (
+              <p className="text-xs text-primary/70 mt-1 font-mono">— {currentHadith.reference}</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm text-primary">Add New Hadith</CardTitle>
+        </CardHeader>
+        <CardContent className="p-4 pt-0 space-y-3">
+          <div>
+            <Label className="text-foreground text-xs mb-1 block">Hadith (Tamil/Main) *</Label>
+            <Textarea
+              value={hadithTamil}
+              onChange={e => setHadithTamil(e.target.value)}
+              placeholder="Enter hadith text..."
+              className="bg-muted border-border text-foreground"
+              rows={3}
+            />
+          </div>
+          <div>
+            <Label className="text-foreground text-xs mb-1 block">Hadith (English)</Label>
+            <Textarea
+              value={hadithEnglish}
+              onChange={e => setHadithEnglish(e.target.value)}
+              placeholder="English translation (optional)"
+              className="bg-muted border-border text-foreground"
+              rows={2}
+            />
+          </div>
+          <div>
+            <Label className="text-foreground text-xs mb-1 block">Reference</Label>
+            <Input
+              value={reference}
+              onChange={e => setReference(e.target.value)}
+              placeholder="e.g. Sahih Bukhari 1234"
+              className="bg-muted border-border text-foreground"
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <Label className="text-sm text-foreground">Set as Active</Label>
+            <Switch checked={isActive} onCheckedChange={setIsActive} />
+          </div>
+          <Button className="w-full" onClick={handleSave} disabled={saving}>
+            {saving ? 'Saving...' : 'Save Hadith'}
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }

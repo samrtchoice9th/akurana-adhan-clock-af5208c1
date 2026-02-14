@@ -10,6 +10,8 @@ export interface PrayerEntry {
   hasIqamath: boolean;
 }
 
+export type PrayerPhase = 'before-adhan' | 'before-iqamah' | 'passed';
+
 interface MergedTimes {
   subah_adhan: string | null;
   sunrise: string | null;
@@ -34,15 +36,28 @@ function parseTimeToMinutes(timeStr: string | null): number | null {
   return hours * 60 + minutes;
 }
 
-export function getPrayerList(merged: MergedTimes | null): PrayerEntry[] {
+export function getPrayerList(merged: MergedTimes | null, offsetMinutes: number = 0): PrayerEntry[] {
   if (!merged) return getEmptyPrayerList();
+
+  const applyOffset = (time: string | null): string | null => {
+    if (!time || offsetMinutes === 0) return time;
+    return addMinutesToTime(time, offsetMinutes);
+  };
+
+  const subah = applyOffset(merged.subah_adhan);
+  const sunrise = applyOffset(merged.sunrise);
+  const luhar = applyOffset(merged.luhar_adhan);
+  const asr = applyOffset(merged.asr_adhan);
+  const magrib = applyOffset(merged.magrib_adhan);
+  const isha = applyOffset(merged.isha_adhan);
+
   return [
-    { name: 'Subah', adhan: merged.subah_adhan, iqamath: addMinutesToTime(merged.subah_adhan, IQAMATH_OFFSETS.Subah), hasIqamath: true },
-    { name: 'Sunrise', adhan: merged.sunrise, iqamath: null, hasIqamath: false },
-    { name: 'Luhar', adhan: merged.luhar_adhan, iqamath: addMinutesToTime(merged.luhar_adhan, IQAMATH_OFFSETS.Luhar), hasIqamath: true },
-    { name: 'Asr', adhan: merged.asr_adhan, iqamath: addMinutesToTime(merged.asr_adhan, IQAMATH_OFFSETS.Asr), hasIqamath: true },
-    { name: 'Magrib', adhan: merged.magrib_adhan, iqamath: addMinutesToTime(merged.magrib_adhan, IQAMATH_OFFSETS.Magrib), hasIqamath: true },
-    { name: 'Isha', adhan: merged.isha_adhan, iqamath: addMinutesToTime(merged.isha_adhan, IQAMATH_OFFSETS.Isha), hasIqamath: true },
+    { name: 'Subah', adhan: subah, iqamath: addMinutesToTime(subah, IQAMATH_OFFSETS.Subah), hasIqamath: true },
+    { name: 'Sunrise', adhan: sunrise, iqamath: null, hasIqamath: false },
+    { name: 'Luhar', adhan: luhar, iqamath: addMinutesToTime(luhar, IQAMATH_OFFSETS.Luhar), hasIqamath: true },
+    { name: 'Asr', adhan: asr, iqamath: addMinutesToTime(asr, IQAMATH_OFFSETS.Asr), hasIqamath: true },
+    { name: 'Magrib', adhan: magrib, iqamath: addMinutesToTime(magrib, IQAMATH_OFFSETS.Magrib), hasIqamath: true },
+    { name: 'Isha', adhan: isha, iqamath: addMinutesToTime(isha, IQAMATH_OFFSETS.Isha), hasIqamath: true },
   ];
 }
 
@@ -57,25 +72,52 @@ function getEmptyPrayerList(): PrayerEntry[] {
   ];
 }
 
+export function getPrayerPhase(prayer: PrayerEntry, now: Date): PrayerPhase {
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const adhanMins = parseTimeToMinutes(prayer.adhan);
+  const iqamahMins = parseTimeToMinutes(prayer.iqamath);
+
+  if (adhanMins === null) return 'passed';
+  if (currentMinutes < adhanMins) return 'before-adhan';
+  if (prayer.hasIqamath && iqamahMins !== null && currentMinutes < iqamahMins) return 'before-iqamah';
+  return 'passed';
+}
+
 export function getNextPrayerIndex(prayers: PrayerEntry[], now: Date): number {
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
   for (let i = 0; i < prayers.length; i++) {
-    const mins = parseTimeToMinutes(prayers[i].adhan);
-    if (mins !== null && mins > currentMinutes) return i;
+    if (prayers[i].name === 'Sunrise') {
+      // Sunrise: only check adhan time (no iqamah)
+      const mins = parseTimeToMinutes(prayers[i].adhan);
+      if (mins !== null && mins > currentMinutes) return i;
+      continue;
+    }
+    const phase = getPrayerPhase(prayers[i], now);
+    if (phase !== 'passed') return i;
   }
   return -1;
 }
 
 export function getCountdown(prayers: PrayerEntry[], nextIndex: number, now: Date): string {
   if (nextIndex < 0) return '';
-  const mins = parseTimeToMinutes(prayers[nextIndex].adhan);
-  if (mins === null) return '';
+  const prayer = prayers[nextIndex];
+  const phase = getPrayerPhase(prayer, now);
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
-  const diff = mins - currentMinutes;
+
+  let targetMins: number | null = null;
+  if (phase === 'before-adhan') {
+    targetMins = parseTimeToMinutes(prayer.adhan);
+  } else if (phase === 'before-iqamah') {
+    targetMins = parseTimeToMinutes(prayer.iqamath);
+  }
+
+  if (targetMins === null) return '';
+  const diff = targetMins - currentMinutes;
+  if (diff <= 0) return '';
   const h = Math.floor(diff / 60);
   const m = diff % 60;
-  if (h > 0) return `in ${h}h ${m}m`;
-  return `in ${m}m`;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
 }
 
 export function usePrayerTimes() {
@@ -102,7 +144,6 @@ export function usePrayerTimes() {
       setError('Prayer time data not available');
       setMerged(null);
     } else {
-      // Carry-forward merge
       const result: MergedTimes = {
         subah_adhan: null, sunrise: null, luhar_adhan: null,
         asr_adhan: null, magrib_adhan: null, isha_adhan: null,

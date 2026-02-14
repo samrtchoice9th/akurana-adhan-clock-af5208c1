@@ -1,10 +1,11 @@
-import { ArrowLeft, Palette, Layout, Check, Bell, Sun, Moon, Building2, Gem, Leaf } from 'lucide-react';
+import { ArrowLeft, Palette, Layout, Check, Bell, Sun, Moon, Building2, Gem, Leaf, MapPin } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { useTheme, ThemeColor, DesignStyle } from '@/hooks/useTheme.tsx';
 import { useNotifications } from '@/hooks/useNotifications';
 import { usePrayerTimes, getPrayerList } from '@/hooks/usePrayerTimes';
+import { useLocation, LocationOption } from '@/hooks/useLocation';
 import { cn } from '@/lib/utils';
 
 const COLORS: { value: ThemeColor; label: string; desc: string; preview: string; icon: typeof Sun }[] = [
@@ -21,11 +22,18 @@ const STYLES: { value: DesignStyle; label: string; desc: string }[] = [
   { value: 'glass', label: 'Glass', desc: 'Frosted glass effects' },
 ];
 
+const LOCATIONS: { value: LocationOption; label: string; desc: string }[] = [
+  { value: 'central', label: 'Central Province', desc: 'Default — no offset' },
+  { value: 'western', label: 'Western Province', desc: '+3 minutes to all Adhan times' },
+  { value: 'eastern', label: 'Eastern Province', desc: '-3 minutes to all Adhan times' },
+];
+
 export default function Settings() {
   const { color, style, isRamadan, setColor, setStyle } = useTheme();
   const { merged } = usePrayerTimes();
   const prayers = getPrayerList(merged);
   const { enabled, permission, toggle } = useNotifications(prayers);
+  const { location, setLocation } = useLocation();
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center px-4 py-6 max-w-md mx-auto">
@@ -45,6 +53,37 @@ export default function Settings() {
           </CardContent>
         </Card>
       )}
+
+      {/* Location Selector */}
+      <Card className="w-full bg-card border-border mb-4">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm text-primary flex items-center gap-2">
+            <MapPin className="h-4 w-4" /> Location
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-4 pt-0">
+          <div className="space-y-2">
+            {LOCATIONS.map(loc => (
+              <button
+                key={loc.value}
+                onClick={() => setLocation(loc.value)}
+                className={cn(
+                  'w-full flex items-center justify-between p-3 rounded-xl border-2 transition-all duration-300 text-left',
+                  location === loc.value
+                    ? 'border-primary bg-primary/10'
+                    : 'border-border hover:border-muted-foreground bg-card'
+                )}
+              >
+                <div>
+                  <p className="text-sm font-semibold text-foreground">{loc.label}</p>
+                  <p className="text-xs text-muted-foreground">{loc.desc}</p>
+                </div>
+                {location === loc.value && <Check className="h-4 w-4 text-primary shrink-0" />}
+              </button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Theme Color */}
       <Card className="w-full bg-card border-border mb-4">
