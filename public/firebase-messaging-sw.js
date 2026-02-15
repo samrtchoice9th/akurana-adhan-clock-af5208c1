@@ -4,12 +4,12 @@ importScripts('https://www.gstatic.com/firebasejs/10.12.5/firebase-messaging-com
 
 const configUrl = new URL(self.location.href);
 const firebaseConfig = {
-  apiKey: configUrl.searchParams.get('apiKey') || '',
-  authDomain: configUrl.searchParams.get('authDomain') || '',
-  projectId: configUrl.searchParams.get('projectId') || '',
-  storageBucket: configUrl.searchParams.get('storageBucket') || '',
-  messagingSenderId: configUrl.searchParams.get('messagingSenderId') || '',
-  appId: configUrl.searchParams.get('appId') || '',
+  apiKey: configUrl.searchParams.get('AIzaSyB5M7vtA33tPN8XJup6khKk6QYWxlvnH7o') || '',
+  authDomain: configUrl.searchParams.get('akurana-prayer-app.firebaseapp.com') || '',
+  projectId: configUrl.searchParams.get('akurana-prayer-app') || '',
+  storageBucket: configUrl.searchParams.get('akurana-prayer-app.firebasestorage.app') || '',
+  messagingSenderId: configUrl.searchParams.get('1057372025321') || '',
+  appId: configUrl.searchParams.get('1:1057372025321:web:1d96d0f56e890dfc191b78') || '',
 };
 
 if (Object.values(firebaseConfig).every(Boolean)) {
