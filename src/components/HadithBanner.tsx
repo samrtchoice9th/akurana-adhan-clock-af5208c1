@@ -11,7 +11,7 @@ interface Hadith {
 
 export function HadithBanner() {
   const [hadith, setHadith] = useState<Hadith | null>(null);
-  const [dismissed, setDismissed] = useState(false);
+  const [dismissedHadithId, setDismissedHadithId] = useState<string | null>(null);
 
   const fetchActiveHadith = useCallback(async () => {
     const { data, error } = await supabase
@@ -33,14 +33,40 @@ export function HadithBanner() {
 
   useEffect(() => {
     fetchActiveHadith();
+
+    const hadithChannel = supabase
+      .channel('hadith-banner-updates')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'hadiths' },
+        () => {
+          fetchActiveHadith();
+        }
+      )
+      .subscribe();
+
+    const refreshInterval = setInterval(fetchActiveHadith, 60_000);
+
+    return () => {
+      clearInterval(refreshInterval);
+      supabase.removeChannel(hadithChannel);
+    };
   }, [fetchActiveHadith]);
 
-  if (!hadith || dismissed) return null;
+  useEffect(() => {
+    if (!hadith) return;
+
+    if (dismissedHadithId && dismissedHadithId !== hadith.id) {
+      setDismissedHadithId(null);
+    }
+  }, [hadith, dismissedHadithId]);
+
+  if (!hadith || dismissedHadithId === hadith.id) return null;
 
   return (
     <div className="w-full mb-4 animate-in slide-in-from-top duration-500 rounded-xl border border-primary/30 bg-primary/10 p-4 relative">
       <button
-        onClick={() => setDismissed(true)}
+        onClick={() => setDismissedHadithId(hadith.id)}
         className="absolute top-2 right-2 text-muted-foreground hover:text-foreground transition-colors"
       >
         <X className="h-4 w-4" />
