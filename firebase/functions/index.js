@@ -45,6 +45,59 @@ function normalizeToHHMM(timeValue) {
   return `${normalizedHour}:${normalizedMinute}`;
 }
 
+
+  const parts = formatter.formatToParts(date);
+  const map = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+
+  return {
+    date: `${map.year}-${map.month}-${map.day}`,
+    hhmm: `${map.hour}:${map.minute}`,
+  };
+}
+
+function normalizeToHHMM(timeValue) {
+  if (!timeValue || typeof timeValue !== 'string') return null;
+
+  const match = timeValue.match(/^(\d{1,2}):(\d{2})/);
+  if (!match) return null;
+
+  const normalizedHour = String(Number(match[1])).padStart(2, '0');
+  const normalizedMinute = match[2];
+  return `${normalizedHour}:${normalizedMinute}`;
+}
+
+function addMinutesToHHMM(hhmmValue, minutesToAdd) {
+  const [hour, minute] = hhmmValue.split(':').map(Number);
+  const totalMinutes = hour * 60 + minute + minutesToAdd;
+
+  const wrappedMinutes = ((totalMinutes % 1440) + 1440) % 1440;
+  const finalHour = Math.floor(wrappedMinutes / 60);
+  const finalMinute = wrappedMinutes % 60;
+
+  return `${String(finalHour).padStart(2, '0')}:${String(finalMinute).padStart(2, '0')}`;
+}
+
+
+  const parts = formatter.formatToParts(date);
+  const map = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+
+  return {
+    date: `${map.year}-${map.month}-${map.day}`,
+    hhmm: `${map.hour}:${map.minute}`,
+  };
+}
+
+function normalizeToHHMM(timeValue) {
+  if (!timeValue || typeof timeValue !== 'string') return null;
+
+  const match = timeValue.match(/^(\d{1,2}):(\d{2})/);
+  if (!match) return null;
+
+  const normalizedHour = String(Number(match[1])).padStart(2, '0');
+  const normalizedMinute = match[2];
+  return `${normalizedHour}:${normalizedMinute}`;
+}
+
 function addMinutesToHHMM(hhmmValue, minutesToAdd) {
   const [hour, minute] = hhmmValue.split(':').map(Number);
   const totalMinutes = hour * 60 + minute + minutesToAdd;
@@ -184,6 +237,105 @@ exports.sendPrayerReminders = onSchedule(
         return;
       }
 
+function buildNotificationTitle(prayerName, reminderType) {
+  const formattedPrayer = prayerName.charAt(0).toUpperCase() + prayerName.slice(1);
+
+  if (reminderType === '10min') return `${formattedPrayer} in 10 minutes`;
+  if (reminderType === '5min') return `${formattedPrayer} in 5 minutes`;
+  if (reminderType === 'adhan') return `${formattedPrayer} Adhan time`;
+  if (reminderType === 'iqamah') return `${formattedPrayer} Iqamah reminder`;
+
+  return `${formattedPrayer} reminder`;
+}
+
+exports.sendPrayerReminders = onSchedule(
+  {
+    schedule: '* * * * *',
+    timeZone: SRI_LANKA_TIMEZONE,
+  },
+  async () => {
+    const { date: sriLankaDate, hhmm: sriLankaCurrentTime } = getColomboDateTimeParts();
+
+    logger.info('Prayer reminder tick', {
+      date: sriLankaDate,
+      time: sriLankaCurrentTime,
+      timeZone: SRI_LANKA_TIMEZONE,
+    });
+
+    try {
+      const { data: prayerTimesRow, error: prayerTimesError } = await supabase
+        .from('daily_prayer_times')
+        .select('date, fajr, dhuhr, asr, maghrib, isha')
+        .eq('date', sriLankaDate)
+        .maybeSingle();
+
+      if (prayerTimesError) {
+        logger.error('Failed to fetch daily prayer times', prayerTimesError);
+        return;
+      }
+
+      if (!prayerTimesRow) {
+        logger.warn('No prayer times found for date', { date: sriLankaDate });
+        return;
+      }
+
+      const { data: pushTokenRows, error: pushTokensError } = await supabase
+        .from('users_push_tokens')
+        .select('id, token, reminder_type')
+        .eq('notifications_enabled', true);
+
+      if (pushTokensError) {
+        logger.error('Failed to fetch user push tokens', pushTokensError);
+        return;
+      }
+
+      if (!pushTokenRows || pushTokenRows.length === 0) {
+        logger.info('No enabled push tokens found');
+        return;
+      }
+
+      const candidateNotifications = [];
+
+      for (const pushTokenRow of pushTokenRows) {
+        const reminderType = pushTokenRow.reminder_type;
+        if (!['10min', '5min', 'adhan', 'iqamah'].includes(reminderType)) {
+          continue;
+        }
+
+        for (const prayerName of PRAYER_FIELDS) {
+          const prayerTimeHHMM = normalizeToHHMM(prayerTimesRow[prayerName]);
+          if (!prayerTimeHHMM) continue;
+
+          const targetSendTime = calculateReminderTime(prayerTimeHHMM, reminderType);
+          if (!targetSendTime || targetSendTime !== sriLankaCurrentTime) continue;
+
+          const dedupeKey = `${sriLankaDate}:${pushTokenRow.id}:${prayerName}:${reminderType}`;
+          candidateNotifications.push({
+            dedupeKey,
+            tokenRecordId: pushTokenRow.id,
+            deviceToken: pushTokenRow.token,
+            prayerName,
+            reminderType,
+          });
+        }
+      }
+
+      if (candidateNotifications.length === 0) {
+        logger.info('No reminders to send this minute');
+        return;
+      }
+
+      const dedupeKeys = candidateNotifications.map((notification) => notification.dedupeKey);
+      const { data: existingLogRows, error: existingLogsError } = await supabase
+        .from('notification_sent_log')
+        .select('dedupe_key')
+        .in('dedupe_key', dedupeKeys);
+
+      if (existingLogsError) {
+        logger.error('Failed to fetch dedupe keys from notification_sent_log', existingLogsError);
+        return;
+      }
+
       const alreadySentKeys = new Set((existingLogRows || []).map((row) => row.dedupe_key));
       const notificationsToSend = candidateNotifications.filter(
         (notification) => !alreadySentKeys.has(notification.dedupeKey)
@@ -233,6 +385,11 @@ exports.sendPrayerReminders = onSchedule(
           });
 
           if (isTokenNotRegisteredError(error)) {
+          const errorCode = error?.code || error?.errorInfo?.code;
+          if (
+            errorCode === 'messaging/registration-token-not-registered' ||
+            errorCode === 'registration-token-not-registered'
+          ) {
             const { error: deleteTokenError } = await supabase
               .from('users_push_tokens')
               .delete()
