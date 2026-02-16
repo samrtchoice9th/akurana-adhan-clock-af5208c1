@@ -120,18 +120,48 @@ function CsvUploadTab() {
   const fileRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  useState(() => {
-    supabase.from('prayer_time_changes').select('id', { count: 'exact', head: true }).then(({ count }) => {
-      setExistingCount(count ?? 0);
-    });
-  });
+  useEffect(() => {
+    let mounted = true;
+    supabase
+      .from('prayer_time_changes')
+      .select('id', { count: 'exact', head: true })
+      .then(({ count, error }) => {
+        if (!mounted) return;
+        if (error) {
+          toast({ title: 'Failed to load existing record count', description: error.message, variant: 'destructive' });
+          return;
+        }
+        setExistingCount(count ?? 0);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [toast]);
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!/\.(xlsx|xls)$/i.test(file.name)) {
+      setParsedRows(null);
+      setParseError('Please upload a valid Excel file (.xlsx or .xls).');
+      return;
+    }
+
     const reader = new FileReader();
+    reader.onerror = () => {
+      setParsedRows(null);
+      setParseError('Failed to read the selected file. Please try again.');
+    };
+
     reader.onload = () => {
-      const result = parseExcel(reader.result as ArrayBuffer);
+      if (!(reader.result instanceof ArrayBuffer)) {
+        setParsedRows(null);
+        setParseError('Invalid file data. Please try again.');
+        return;
+      }
+
+      const result = parseExcel(reader.result);
       if (result.success) {
         setParsedRows(result.rows);
         setParseError(null);
