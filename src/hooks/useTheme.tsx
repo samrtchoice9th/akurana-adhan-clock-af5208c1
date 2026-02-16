@@ -1,6 +1,12 @@
 import { useState, useEffect, useCallback, createContext, useContext, ReactNode, CSSProperties } from 'react';
 
-export type ThemeColor = 'light' | 'navy' | 'blue-finance' | 'black-gold' | 'teal';
+export type ThemeColor =
+  | 'black-gold'
+  | 'mocha-stone'
+  | 'olive-ash'
+  | 'concrete-dusk'
+  | 'plum-shadow'
+  | 'espresso-black';
 export type DesignStyle = 'modern' | 'classic' | 'glass';
 
 interface ThemePrefs {
@@ -16,10 +22,10 @@ interface ThemeContextType extends ThemePrefs {
 }
 
 const STORAGE_KEY = 'akurana-theme-prefs';
-const defaultPrefs: ThemePrefs = { color: 'light', style: 'modern' };
+const defaultPrefs: ThemePrefs = { color: 'black-gold', style: 'modern' };
 
 function isThemeColor(value: unknown): value is ThemeColor {
-  return ['light', 'navy', 'blue-finance', 'black-gold', 'teal'].includes(String(value));
+  return ['black-gold', 'mocha-stone', 'olive-ash', 'concrete-dusk', 'plum-shadow', 'espresso-black'].includes(String(value));
 }
 
 function isDesignStyle(value: unknown): value is DesignStyle {
@@ -64,29 +70,6 @@ const RAMADAN_VARS: CssVariableMap = {
 };
 
 const THEME_VARS: Record<ThemeColor, CssVariableMap> = {
-  light: {},
-  navy: {
-    '--background': '222 47% 6%', '--foreground': '210 20% 92%',
-    '--card': '222 40% 10%', '--card-foreground': '210 20% 92%',
-    '--popover': '222 40% 10%', '--popover-foreground': '210 20% 92%',
-    '--primary': '210 80% 65%', '--primary-foreground': '222 47% 6%',
-    '--secondary': '210 60% 50%', '--secondary-foreground': '0 0% 100%',
-    '--muted': '222 30% 16%', '--muted-foreground': '215 15% 55%',
-    '--accent': '210 80% 65%', '--accent-foreground': '222 47% 6%',
-    '--border': '222 25% 18%', '--input': '222 25% 18%',
-    '--ring': '210 80% 65%',
-  },
-  'blue-finance': {
-    '--background': '220 20% 97%', '--foreground': '222 30% 12%',
-    '--card': '0 0% 100%', '--card-foreground': '222 30% 12%',
-    '--popover': '0 0% 100%', '--popover-foreground': '222 30% 12%',
-    '--primary': '224 76% 48%', '--primary-foreground': '0 0% 100%',
-    '--secondary': '220 60% 35%', '--secondary-foreground': '0 0% 100%',
-    '--muted': '220 15% 91%', '--muted-foreground': '220 10% 42%',
-    '--accent': '224 76% 48%', '--accent-foreground': '0 0% 100%',
-    '--border': '220 15% 86%', '--input': '220 15% 86%',
-    '--ring': '224 76% 48%',
-  },
   'black-gold': {
     '--background': '0 0% 2%', '--foreground': '40 20% 90%',
     '--card': '0 0% 7%', '--card-foreground': '40 20% 90%',
@@ -98,16 +81,60 @@ const THEME_VARS: Record<ThemeColor, CssVariableMap> = {
     '--border': '40 10% 16%', '--input': '40 10% 16%',
     '--ring': '43 75% 46%',
   },
-  teal: {
-    '--background': '170 20% 97%', '--foreground': '170 20% 10%',
-    '--card': '0 0% 100%', '--card-foreground': '170 20% 10%',
-    '--popover': '0 0% 100%', '--popover-foreground': '170 20% 10%',
-    '--primary': '168 76% 36%', '--primary-foreground': '0 0% 100%',
-    '--secondary': '160 60% 40%', '--secondary-foreground': '0 0% 100%',
-    '--muted': '170 15% 91%', '--muted-foreground': '170 10% 40%',
-    '--accent': '168 76% 36%', '--accent-foreground': '0 0% 100%',
-    '--border': '170 15% 86%', '--input': '170 15% 86%',
-    '--ring': '168 76% 36%',
+  'mocha-stone': {
+    '--background': '30 5% 7%', '--foreground': '33 19% 88%',
+    '--card': '24 9% 11%', '--card-foreground': '33 19% 88%',
+    '--popover': '24 9% 11%', '--popover-foreground': '33 19% 88%',
+    '--primary': '27 28% 43%', '--primary-foreground': '0 0% 100%',
+    '--secondary': '27 20% 33%', '--secondary-foreground': '0 0% 100%',
+    '--muted': '24 8% 18%', '--muted-foreground': '30 8% 66%',
+    '--accent': '27 28% 43%', '--accent-foreground': '0 0% 100%',
+    '--border': '24 10% 20%', '--input': '24 10% 20%',
+    '--ring': '27 28% 43%',
+  },
+  'olive-ash': {
+    '--background': '90 10% 8%', '--foreground': '86 13% 90%',
+    '--card': '90 9% 13%', '--card-foreground': '86 13% 90%',
+    '--popover': '90 9% 13%', '--popover-foreground': '86 13% 90%',
+    '--primary': '79 20% 40%', '--primary-foreground': '0 0% 100%',
+    '--secondary': '80 14% 32%', '--secondary-foreground': '0 0% 100%',
+    '--muted': '90 8% 19%', '--muted-foreground': '88 8% 62%',
+    '--accent': '79 20% 40%', '--accent-foreground': '0 0% 100%',
+    '--border': '90 9% 22%', '--input': '90 9% 22%',
+    '--ring': '79 20% 40%',
+  },
+  'concrete-dusk': {
+    '--background': '0 0% 7%', '--foreground': '0 0% 95%',
+    '--card': '0 0% 11%', '--card-foreground': '0 0% 95%',
+    '--popover': '0 0% 11%', '--popover-foreground': '0 0% 95%',
+    '--primary': '60 3% 47%', '--primary-foreground': '0 0% 100%',
+    '--secondary': '0 0% 38%', '--secondary-foreground': '0 0% 100%',
+    '--muted': '0 0% 15%', '--muted-foreground': '0 0% 72%',
+    '--accent': '60 3% 47%', '--accent-foreground': '0 0% 100%',
+    '--border': '0 0% 19%', '--input': '0 0% 19%',
+    '--ring': '60 3% 47%',
+  },
+  'plum-shadow': {
+    '--background': '300 12% 8%', '--foreground': '300 17% 92%',
+    '--card': '300 11% 12%', '--card-foreground': '300 17% 92%',
+    '--popover': '300 11% 12%', '--popover-foreground': '300 17% 92%',
+    '--primary': '326 25% 39%', '--primary-foreground': '0 0% 100%',
+    '--secondary': '322 20% 31%', '--secondary-foreground': '0 0% 100%',
+    '--muted': '300 9% 18%', '--muted-foreground': '300 6% 69%',
+    '--accent': '326 25% 39%', '--accent-foreground': '0 0% 100%',
+    '--border': '300 10% 22%', '--input': '300 10% 22%',
+    '--ring': '326 25% 39%',
+  },
+  'espresso-black': {
+    '--background': '20 10% 6%', '--foreground': '30 22% 89%',
+    '--card': '24 11% 9%', '--card-foreground': '30 22% 89%',
+    '--popover': '24 11% 9%', '--popover-foreground': '30 22% 89%',
+    '--primary': '23 28% 29%', '--primary-foreground': '0 0% 100%',
+    '--secondary': '24 20% 24%', '--secondary-foreground': '0 0% 100%',
+    '--muted': '24 10% 16%', '--muted-foreground': '30 7% 62%',
+    '--accent': '23 28% 29%', '--accent-foreground': '0 0% 100%',
+    '--border': '24 10% 19%', '--input': '24 10% 19%',
+    '--ring': '23 28% 29%',
   },
 };
 
