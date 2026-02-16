@@ -1,11 +1,14 @@
-import { useState, useEffect, useCallback, createContext, useContext, ReactNode } from 'react';
+import { useState, useEffect, useCallback, createContext, useContext, ReactNode, CSSProperties } from 'react';
 
 export type ThemeColor = 'light' | 'navy' | 'blue-finance' | 'black-gold' | 'teal';
 export type DesignStyle = 'modern' | 'classic' | 'glass';
 
-interface ThemeContextType {
+interface ThemePrefs {
   color: ThemeColor;
   style: DesignStyle;
+}
+
+interface ThemeContextType extends ThemePrefs {
   isRamadan: boolean;
   setColor: (c: ThemeColor) => void;
   setStyle: (s: DesignStyle) => void;
@@ -13,33 +16,54 @@ interface ThemeContextType {
 }
 
 const STORAGE_KEY = 'akurana-theme-prefs';
-const defaultPrefs = { color: 'light' as ThemeColor, style: 'modern' as DesignStyle };
+const defaultPrefs: ThemePrefs = { color: 'light', style: 'modern' };
 
-function loadPrefs() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (['green', 'blue', 'dark'].includes(parsed.color)) parsed.color = 'light';
-      return { ...defaultPrefs, ...parsed };
-    }
-  } catch {}
-  return defaultPrefs;
+function isThemeColor(value: unknown): value is ThemeColor {
+  return ['light', 'navy', 'blue-finance', 'black-gold', 'teal'].includes(String(value));
 }
 
-const RAMADAN_VARS: Record<string, string> = {
-  '--background': '152 70% 10%', '--foreground': '43 20% 90%',
-  '--card': '152 50% 13%', '--card-foreground': '43 20% 90%',
-  '--popover': '152 50% 13%', '--popover-foreground': '43 20% 90%',
-  '--primary': '43 80% 50%', '--primary-foreground': '152 70% 10%',
-  '--secondary': '43 60% 40%', '--secondary-foreground': '0 0% 100%',
-  '--muted': '152 30% 18%', '--muted-foreground': '43 15% 55%',
-  '--accent': '43 80% 50%', '--accent-foreground': '152 70% 10%',
-  '--border': '152 25% 20%', '--input': '152 25% 20%',
+function isDesignStyle(value: unknown): value is DesignStyle {
+  return ['modern', 'classic', 'glass'].includes(String(value));
+}
+
+function loadPrefs(): ThemePrefs {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return defaultPrefs;
+
+    const parsed = JSON.parse(raw) as Partial<ThemePrefs>;
+    return {
+      color: isThemeColor(parsed.color) ? parsed.color : defaultPrefs.color,
+      style: isDesignStyle(parsed.style) ? parsed.style : defaultPrefs.style,
+    };
+  } catch {
+    return defaultPrefs;
+  }
+}
+
+type CssVariableMap = Record<`--${string}`, string>;
+
+const RAMADAN_VARS: CssVariableMap = {
+  '--background': '152 70% 10%',
+  '--foreground': '43 20% 90%',
+  '--card': '152 50% 13%',
+  '--card-foreground': '43 20% 90%',
+  '--popover': '152 50% 13%',
+  '--popover-foreground': '43 20% 90%',
+  '--primary': '43 80% 50%',
+  '--primary-foreground': '152 70% 10%',
+  '--secondary': '43 60% 40%',
+  '--secondary-foreground': '0 0% 100%',
+  '--muted': '152 30% 18%',
+  '--muted-foreground': '43 15% 55%',
+  '--accent': '43 80% 50%',
+  '--accent-foreground': '152 70% 10%',
+  '--border': '152 25% 20%',
+  '--input': '152 25% 20%',
   '--ring': '43 80% 50%',
 };
 
-const THEME_VARS: Record<ThemeColor, Record<string, string>> = {
+const THEME_VARS: Record<ThemeColor, CssVariableMap> = {
   light: {},
   navy: {
     '--background': '222 47% 6%', '--foreground': '210 20% 92%',
@@ -94,7 +118,11 @@ const STYLE_RADIUS: Record<DesignStyle, string> = {
 };
 
 const ThemeContext = createContext<ThemeContextType>({
-  ...defaultPrefs, isRamadan: false, setColor: () => {}, setStyle: () => {}, setIsRamadan: () => {},
+  ...defaultPrefs,
+  isRamadan: false,
+  setColor: () => undefined,
+  setStyle: () => undefined,
+  setIsRamadan: () => undefined,
 });
 
 export function useTheme() {
@@ -102,20 +130,22 @@ export function useTheme() {
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [prefs, setPrefs] = useState(loadPrefs);
+  const [prefs, setPrefs] = useState<ThemePrefs>(loadPrefs);
   const [isRamadan, setIsRamadan] = useState(false);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
   }, [prefs]);
 
-  const setColor = useCallback((color: ThemeColor) => setPrefs(p => ({ ...p, color })), []);
-  const setStyle = useCallback((style: DesignStyle) => setPrefs(p => ({ ...p, style })), []);
+  const setColor = useCallback((color: ThemeColor) => setPrefs((prev) => ({ ...prev, color })), []);
+  const setStyle = useCallback((style: DesignStyle) => setPrefs((prev) => ({ ...prev, style })), []);
 
-  // Use Ramadan vars when active, otherwise user selection
   const vars = isRamadan ? RAMADAN_VARS : THEME_VARS[prefs.color];
-  const styleVars: React.CSSProperties = { '--radius': STYLE_RADIUS[prefs.style] } as any;
-  Object.entries(vars).forEach(([k, v]) => { (styleVars as any)[k] = v; });
+  const styleVars: CSSProperties = { '--radius': STYLE_RADIUS[prefs.style] };
+
+  for (const [key, value] of Object.entries(vars)) {
+    styleVars[key as keyof CSSProperties] = value;
+  }
 
   const styleClass = prefs.style === 'glass' ? 'style-glass' : '';
 
@@ -127,5 +157,3 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     </ThemeContext.Provider>
   );
 }
-
-export function initTheme() {}
