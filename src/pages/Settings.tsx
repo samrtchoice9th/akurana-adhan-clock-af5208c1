@@ -2,11 +2,18 @@ import { ArrowLeft, Palette, Layout, Check, Bell, Gem, Coffee, Trees, Factory, G
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
-import { useTheme, ThemeColor, DesignStyle } from '@/hooks/useTheme.tsx';
+import { useTheme, ThemeColor, DesignStyle } from '@/hooks/useTheme';
 import { useNotifications } from '@/hooks/useNotifications';
 import { useLocation, LocationOption } from '@/hooks/useLocation';
 import { cn } from '@/lib/utils';
 
+const COLORS: { value: ThemeColor; label: string; desc: string; preview: string; icon: typeof Sun }[] = [
+  { value: 'black-gold', label: 'Black Gold Premium', desc: 'Luxury dark with gold accents', preview: 'bg-[hsl(43,75%,46%)]', icon: Gem },
+  { value: 'mocha-stone', label: 'Mocha Stone', desc: 'Mocha grey and coffee-inspired palette', preview: 'bg-[#8C6A4F]', icon: Moon },
+  { value: 'olive-ash', label: 'Olive Ash', desc: 'Olive drab paired with bone tones', preview: 'bg-[#6E7B52]', icon: Leaf },
+  { value: 'concrete-dusk', label: 'Concrete Dusk', desc: 'Muted grey interior palette', preview: 'bg-[#7A7A74]', icon: Building2 },
+  { value: 'plum-shadow', label: 'Plum Shadow', desc: 'Deep plum landscape-inspired dark theme', preview: 'bg-[#7B4A66]', icon: Palette },
+  { value: 'espresso-black', label: 'Espresso Black', desc: 'Dark wood and espresso tones', preview: 'bg-[#5F4636]', icon: Sun },
 const COLORS: { value: ThemeColor; label: string; desc: string; preview: string; icon: typeof Gem }[] = [
   { value: 'black-gold', label: 'Black Gold Premium', desc: 'Luxury dark with gold accents', preview: 'bg-[hsl(43,75%,46%)]', icon: Gem },
   { value: 'mocha-stone', label: 'Mocha Stone', desc: 'Mocha grey and coffee-inspired palette', preview: 'bg-[#8C6A4F]', icon: Coffee },
