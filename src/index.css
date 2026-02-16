@@ -6,117 +6,45 @@
 
 @layer base {
   :root {
-    /* Default Light Theme */
-    --background: 210 20% 98%;
-    --foreground: 220 15% 15%;
+    /* Black Gold Premium Theme (default) */
+    --background: 0 0% 2%;
+    --foreground: 40 20% 90%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 220 15% 15%;
+    --card: 0 0% 7%;
+    --card-foreground: 40 20% 90%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 220 15% 15%;
+    --popover: 0 0% 7%;
+    --popover-foreground: 40 20% 90%;
 
-    --primary: 215 25% 30%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 43 75% 46%;
+    --primary-foreground: 0 0% 0%;
 
-    --secondary: 215 60% 55%;
+    --secondary: 38 60% 38%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 210 15% 92%;
-    --muted-foreground: 215 10% 45%;
+    --muted: 0 0% 13%;
+    --muted-foreground: 40 10% 50%;
 
-    --accent: 215 60% 55%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 43 75% 46%;
+    --accent-foreground: 0 0% 0%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 215 15% 88%;
-    --input: 215 15% 88%;
-    --ring: 215 25% 30%;
+    --border: 40 10% 16%;
+    --input: 40 10% 16%;
+    --ring: 43 75% 46%;
 
     --radius: 0.75rem;
 
-    --sidebar-background: 210 20% 96%;
-    --sidebar-foreground: 220 15% 15%;
-    --sidebar-primary: 215 25% 30%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 210 15% 92%;
-    --sidebar-accent-foreground: 220 15% 15%;
-    --sidebar-border: 215 15% 88%;
-    --sidebar-ring: 215 25% 30%;
-  }
-
-  /* ===== Dark Navy Theme ===== */
-  .theme-navy {
-    --background: 222 47% 6%;
-    --foreground: 210 20% 92%;
-
-    --card: 222 40% 10%;
-    --card-foreground: 210 20% 92%;
-
-    --popover: 222 40% 10%;
-    --popover-foreground: 210 20% 92%;
-
-    --primary: 210 80% 65%;
-    --primary-foreground: 222 47% 6%;
-
-    --secondary: 210 60% 50%;
-    --secondary-foreground: 0 0% 100%;
-
-    --muted: 222 30% 16%;
-    --muted-foreground: 215 15% 55%;
-
-    --accent: 210 80% 65%;
-    --accent-foreground: 222 47% 6%;
-
-    --border: 222 25% 18%;
-    --input: 222 25% 18%;
-    --ring: 210 80% 65%;
-
-    --sidebar-background: 222 47% 5%;
-    --sidebar-primary: 210 80% 65%;
-    --sidebar-primary-foreground: 222 47% 6%;
-    --sidebar-accent: 222 30% 16%;
-    --sidebar-accent-foreground: 210 20% 92%;
-    --sidebar-border: 222 25% 18%;
-    --sidebar-ring: 210 80% 65%;
-  }
-
-  /* ===== Blue Finance Theme ===== */
-  .theme-blue-finance {
-    --background: 220 20% 97%;
-    --foreground: 222 30% 12%;
-
-    --card: 0 0% 100%;
-    --card-foreground: 222 30% 12%;
-
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 30% 12%;
-
-    --primary: 224 76% 48%;
-    --primary-foreground: 0 0% 100%;
-
-    --secondary: 220 60% 35%;
-    --secondary-foreground: 0 0% 100%;
-
-    --muted: 220 15% 91%;
-    --muted-foreground: 220 10% 42%;
-
-    --accent: 224 76% 48%;
-    --accent-foreground: 0 0% 100%;
-
-    --border: 220 15% 86%;
-    --input: 220 15% 86%;
-    --ring: 224 76% 48%;
-
-    --sidebar-background: 220 20% 95%;
-    --sidebar-primary: 224 76% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 15% 91%;
-    --sidebar-accent-foreground: 222 30% 12%;
-    --sidebar-border: 220 15% 86%;
-    --sidebar-ring: 224 76% 48%;
+    --sidebar-background: 0 0% 3%;
+    --sidebar-foreground: 40 20% 90%;
+    --sidebar-primary: 43 75% 46%;
+    --sidebar-primary-foreground: 0 0% 0%;
+    --sidebar-accent: 0 0% 13%;
+    --sidebar-accent-foreground: 40 20% 90%;
+    --sidebar-border: 40 10% 16%;
+    --sidebar-ring: 43 75% 46%;
   }
 
   /* ===== Black Gold Premium Theme ===== */
@@ -155,40 +83,144 @@
     --sidebar-ring: 43 75% 46%;
   }
 
-  /* ===== Teal Fresh Theme ===== */
-  .theme-teal {
-    --background: 170 20% 97%;
-    --foreground: 170 20% 10%;
+  /* ===== Mocha Stone Theme ===== */
+  .theme-mocha-stone {
+    --background: 30 5% 7%;
+    --foreground: 33 19% 88%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 170 20% 10%;
+    --card: 24 9% 11%;
+    --card-foreground: 33 19% 88%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 170 20% 10%;
+    --popover: 24 9% 11%;
+    --popover-foreground: 33 19% 88%;
 
-    --primary: 168 76% 36%;
+    --primary: 27 28% 43%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 160 60% 40%;
+    --secondary: 27 20% 33%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 170 15% 91%;
-    --muted-foreground: 170 10% 40%;
+    --muted: 24 8% 18%;
+    --muted-foreground: 30 8% 66%;
 
-    --accent: 168 76% 36%;
+    --accent: 27 28% 43%;
     --accent-foreground: 0 0% 100%;
 
-    --border: 170 15% 86%;
-    --input: 170 15% 86%;
-    --ring: 168 76% 36%;
+    --border: 24 10% 20%;
+    --input: 24 10% 20%;
+    --ring: 27 28% 43%;
+  }
 
-    --sidebar-background: 170 20% 95%;
-    --sidebar-primary: 168 76% 36%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 170 15% 91%;
-    --sidebar-accent-foreground: 170 20% 10%;
-    --sidebar-border: 170 15% 86%;
-    --sidebar-ring: 168 76% 36%;
+  /* ===== Olive Ash Theme ===== */
+  .theme-olive-ash {
+    --background: 90 10% 8%;
+    --foreground: 86 13% 90%;
+
+    --card: 90 9% 13%;
+    --card-foreground: 86 13% 90%;
+
+    --popover: 90 9% 13%;
+    --popover-foreground: 86 13% 90%;
+
+    --primary: 79 20% 40%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 80 14% 32%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 90 8% 19%;
+    --muted-foreground: 88 8% 62%;
+
+    --accent: 79 20% 40%;
+    --accent-foreground: 0 0% 100%;
+
+    --border: 90 9% 22%;
+    --input: 90 9% 22%;
+    --ring: 79 20% 40%;
+  }
+
+  /* ===== Concrete Dusk Theme ===== */
+  .theme-concrete-dusk {
+    --background: 0 0% 7%;
+    --foreground: 0 0% 95%;
+
+    --card: 0 0% 11%;
+    --card-foreground: 0 0% 95%;
+
+    --popover: 0 0% 11%;
+    --popover-foreground: 0 0% 95%;
+
+    --primary: 60 3% 47%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 0 0% 38%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 0 0% 15%;
+    --muted-foreground: 0 0% 72%;
+
+    --accent: 60 3% 47%;
+    --accent-foreground: 0 0% 100%;
+
+    --border: 0 0% 19%;
+    --input: 0 0% 19%;
+    --ring: 60 3% 47%;
+  }
+
+  /* ===== Plum Shadow Theme ===== */
+  .theme-plum-shadow {
+    --background: 300 12% 8%;
+    --foreground: 300 17% 92%;
+
+    --card: 300 11% 12%;
+    --card-foreground: 300 17% 92%;
+
+    --popover: 300 11% 12%;
+    --popover-foreground: 300 17% 92%;
+
+    --primary: 326 25% 39%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 322 20% 31%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 300 9% 18%;
+    --muted-foreground: 300 6% 69%;
+
+    --accent: 326 25% 39%;
+    --accent-foreground: 0 0% 100%;
+
+    --border: 300 10% 22%;
+    --input: 300 10% 22%;
+    --ring: 326 25% 39%;
+  }
+
+  /* ===== Espresso Black Theme ===== */
+  .theme-espresso-black {
+    --background: 20 10% 6%;
+    --foreground: 30 22% 89%;
+
+    --card: 24 11% 9%;
+    --card-foreground: 30 22% 89%;
+
+    --popover: 24 11% 9%;
+    --popover-foreground: 30 22% 89%;
+
+    --primary: 23 28% 29%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 24 20% 24%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 24 10% 16%;
+    --muted-foreground: 30 7% 62%;
+
+    --accent: 23 28% 29%;
+    --accent-foreground: 0 0% 100%;
+
+    --border: 24 10% 19%;
+    --input: 24 10% 19%;
+    --ring: 23 28% 29%;
   }
 
   /* ===== Classic Style ===== */
