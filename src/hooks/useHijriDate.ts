@@ -35,10 +35,16 @@ function daysBetween(dateA: string, dateB: string): number {
   return Math.floor((b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24));
 }
 
+// Islamic months alternate between 30 and 29 days (odd months = 30, even = 29)
+// This is a simplified approximation; exact lengths depend on moon sighting.
+function daysInHijriMonth(month: number): number {
+  return month % 2 === 1 ? 30 : 29;
+}
+
 function advanceHijri(y: number, m: number, d: number, days: number) {
   for (let i = 0; i < days; i++) {
     d += 1;
-    if (d > 30) {
+    if (d > daysInHijriMonth(m)) {
       d = 1;
       m += 1;
       if (m > 12) { m = 1; y += 1; }
