@@ -120,6 +120,10 @@ Set a SHA-256 hash in environment variable:
 
 - `VITE_ADMIN_PASSWORD_HASH`
 
+For local development only, you can temporarily use:
+
+- `VITE_ADMIN_PASSWORD`
+
 Generate hash example:
 
 ```sh

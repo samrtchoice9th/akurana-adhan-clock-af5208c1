@@ -17,6 +17,7 @@ import { useHijriDate, formatHijriDate } from '@/hooks/useHijriDate';
 import { Label } from '@/components/ui/label';
 
 const ADMIN_PASSWORD_HASH = import.meta.env.VITE_ADMIN_PASSWORD_HASH;
+const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD;
 
 async function sha256Hex(value: string): Promise<string> {
   const bytes = new TextEncoder().encode(value);
@@ -31,15 +32,20 @@ export default function Admin() {
   const { toast } = useToast();
 
   const authenticate = useCallback(async () => {
-    if (!ADMIN_PASSWORD_HASH) {
+    if (!ADMIN_PASSWORD_HASH && !ADMIN_PASSWORD) {
       toast({ title: 'Admin password hash is not configured', variant: 'destructive' });
       return;
     }
 
     setAuthenticating(true);
     try {
-      const passwordHash = await sha256Hex(password);
-      if (passwordHash === ADMIN_PASSWORD_HASH.toLowerCase()) {
+      if (ADMIN_PASSWORD_HASH) {
+        const passwordHash = await sha256Hex(password);
+        if (passwordHash === ADMIN_PASSWORD_HASH.toLowerCase()) {
+          setAuthenticated(true);
+          return;
+        }
+      } else if (password === ADMIN_PASSWORD) {
         setAuthenticated(true);
         return;
       }
