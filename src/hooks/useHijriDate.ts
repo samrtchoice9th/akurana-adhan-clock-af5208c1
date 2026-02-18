@@ -36,7 +36,6 @@ function daysBetween(dateA: string, dateB: string): number {
 }
 
 // Islamic months alternate between 30 and 29 days (odd months = 30, even = 29)
-// This is a simplified approximation; exact lengths depend on moon sighting.
 function daysInHijriMonth(month: number): number {
   return month % 2 === 1 ? 30 : 29;
 }
@@ -80,7 +79,22 @@ export function useHijriDate() {
   }, []);
 
   useEffect(() => {
+    // Initial fetch
     fetchAndAutoIncrement();
+
+    // Realtime subscription — instantly reflects any DB change (admin edits, external updates)
+    const channel = supabase
+      .channel('hijri_date_changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'hijri_date' },
+        (payload) => {
+          if (payload.new && typeof payload.new === 'object') {
+            setHijri(payload.new as HijriState);
+          }
+        }
+      )
+      .subscribe();
 
     // Check every 30s for midnight crossing so Hijri updates without reload
     const checkInterval = setInterval(() => {
@@ -91,7 +105,10 @@ export function useHijriDate() {
     }, 30000);
     midnightRef.current = checkInterval;
 
-    return () => clearInterval(checkInterval);
+    return () => {
+      clearInterval(checkInterval);
+      supabase.removeChannel(channel);
+    };
   }, [fetchAndAutoIncrement]);
 
   const updateHijri = useCallback(async (year: number, month: number, day: number) => {
