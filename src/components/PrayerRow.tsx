@@ -1,8 +1,9 @@
+import { type ElementType } from 'react';
 import { cn } from '@/lib/utils';
 import { Sun, Sunrise, Moon, CloudSun, Clock } from 'lucide-react';
 import type { PrayerEntry } from '@/hooks/usePrayerTimes';
 
-const prayerIcons: Record<string, React.ElementType> = {
+const prayerIcons: Record<string, ElementType> = {
   Subah: Moon,
   Sunrise: Sunrise,
   Luhar: Sun,

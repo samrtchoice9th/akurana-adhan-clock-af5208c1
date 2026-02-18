@@ -415,6 +415,15 @@ function HijriControlTab() {
 
 /* =================== Hadith Tab =================== */
 
+interface HadithRow {
+  id: string;
+  hadith_tamil: string;
+  hadith_english: string | null;
+  reference: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
 function HadithTab() {
   const { toast } = useToast();
   const [hadithTamil, setHadithTamil] = useState('');
@@ -422,26 +431,67 @@ function HadithTab() {
   const [reference, setReference] = useState('');
   const [isActive, setIsActive] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [currentHadith, setCurrentHadith] = useState<{ id: string; hadith_tamil: string; hadith_english: string | null; reference: string | null } | null>(null);
+  const [hadiths, setHadiths] = useState<HadithRow[]>([]);
+  const [loadingList, setLoadingList] = useState(true);
+  const [actionBusy, setActionBusy] = useState<string | null>(null);
 
-  const fetchActive = useCallback(async () => {
+  const fetchAll = useCallback(async () => {
+    setLoadingList(true);
     const { data, error } = await supabase
       .from('hadiths')
-      .select('id, hadith_tamil, hadith_english, reference')
-      .eq('is_active', true)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .select('id, hadith_tamil, hadith_english, reference, is_active, created_at')
+      .order('created_at', { ascending: false });
 
     if (error) {
-      toast({ title: 'Error loading active hadith', description: error.message, variant: 'destructive' });
+      toast({ title: 'Error loading hadiths', description: error.message, variant: 'destructive' });
+    } else {
+      setHadiths((data as HadithRow[]) ?? []);
+    }
+    setLoadingList(false);
+  }, [toast]);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  const handleSetActive = async (id: string) => {
+    setActionBusy(id);
+    // Deactivate all
+    const { error: deactivateErr } = await supabase
+      .from('hadiths')
+      .update({ is_active: false })
+      .eq('is_active', true);
+
+    if (deactivateErr) {
+      toast({ title: 'Error updating hadith', description: deactivateErr.message, variant: 'destructive' });
+      setActionBusy(null);
       return;
     }
 
-    setCurrentHadith(data as { id: string; hadith_tamil: string; hadith_english: string | null; reference: string | null } | null);
-  }, [toast]);
+    // Activate selected
+    const { error: activateErr } = await supabase
+      .from('hadiths')
+      .update({ is_active: true })
+      .eq('id', id);
 
-  useEffect(() => { fetchActive(); }, [fetchActive]);
+    if (activateErr) {
+      toast({ title: 'Error activating hadith', description: activateErr.message, variant: 'destructive' });
+    } else {
+      toast({ title: '✅ Hadith set as active' });
+      await fetchAll();
+    }
+    setActionBusy(null);
+  };
+
+  const handleDelete = async (id: string) => {
+    setActionBusy(id + '-del');
+    const { error } = await supabase.from('hadiths').delete().eq('id', id);
+    if (error) {
+      toast({ title: 'Error deleting hadith', description: error.message, variant: 'destructive' });
+    } else {
+      toast({ title: 'Hadith deleted' });
+      await fetchAll();
+    }
+    setActionBusy(null);
+  };
 
   const handleSave = async () => {
     if (!hadithTamil.trim()) {
@@ -450,7 +500,6 @@ function HadithTab() {
     }
     setSaving(true);
 
-    // Deactivate all if this one is active
     if (isActive) {
       const { error: deactivateError } = await supabase
         .from('hadiths')
@@ -478,32 +527,72 @@ function HadithTab() {
       setHadithTamil('');
       setHadithEnglish('');
       setReference('');
-      fetchActive();
+      await fetchAll();
     }
     setSaving(false);
   };
 
   return (
     <div className="space-y-4 mt-4">
-      {currentHadith && (
-        <Card className="bg-card border-border">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-primary flex items-center gap-2">
-              <BookOpen className="h-4 w-4" /> Current Active Hadith
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-0">
-            <p className="text-sm text-foreground">{currentHadith.hadith_tamil}</p>
-            {currentHadith.hadith_english && (
-              <p className="text-xs text-muted-foreground mt-1 italic">{currentHadith.hadith_english}</p>
-            )}
-            {currentHadith.reference && (
-              <p className="text-xs text-primary/70 mt-1 font-mono">— {currentHadith.reference}</p>
-            )}
-          </CardContent>
-        </Card>
-      )}
+      {/* All Hadiths List */}
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm text-primary flex items-center gap-2">
+            <BookOpen className="h-4 w-4" /> All Hadiths ({hadiths.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {loadingList ? (
+            <p className="text-muted-foreground text-xs p-4">Loading...</p>
+          ) : hadiths.length === 0 ? (
+            <p className="text-muted-foreground text-xs p-4">No hadiths added yet.</p>
+          ) : (
+            <div className="max-h-72 overflow-auto divide-y divide-border">
+              {hadiths.map((h) => (
+                <div key={h.id} className={`p-3 ${h.is_active ? 'bg-primary/5' : ''}`}>
+                  <div className="flex items-start justify-between gap-2 mb-1">
+                    <div className="flex-1 min-w-0">
+                      {h.is_active && (
+                        <span className="inline-block text-[10px] font-bold uppercase tracking-wider bg-primary/20 text-primary px-1.5 py-0.5 rounded mb-1">
+                          Active
+                        </span>
+                      )}
+                      <p className="text-xs text-foreground leading-relaxed line-clamp-2">{h.hadith_tamil}</p>
+                      {h.reference && (
+                        <p className="text-[10px] text-primary/70 font-mono mt-0.5">— {h.reference}</p>
+                      )}
+                    </div>
+                    <div className="flex flex-col gap-1 shrink-0">
+                      {!h.is_active && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-6 text-[10px] px-2"
+                          disabled={actionBusy === h.id}
+                          onClick={() => handleSetActive(h.id)}
+                        >
+                          {actionBusy === h.id ? '...' : 'Set Active'}
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 text-[10px] px-2 text-destructive hover:text-destructive"
+                        disabled={actionBusy === h.id + '-del'}
+                        onClick={() => handleDelete(h.id)}
+                      >
+                        {actionBusy === h.id + '-del' ? '...' : 'Delete'}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
+      {/* Add New Hadith */}
       <Card className="bg-card border-border">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm text-primary">Add New Hadith</CardTitle>
@@ -550,3 +639,4 @@ function HadithTab() {
     </div>
   );
 }
+
