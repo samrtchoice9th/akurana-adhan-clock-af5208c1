@@ -36,7 +36,7 @@ export function addMinutesToTime(timeStr: string | null, minutes: number): strin
   return `${newH}:${String(newM).padStart(2, '0')} ${newPeriod}`;
 }
 
-/** Fixed Iqamath offsets per prayer */
+/** Fixed Iqamath offsets per prayer (normal days) */
 export const IQAMATH_OFFSETS: Record<string, number> = {
   Subah: 30,
   Luhar: 15,
@@ -44,3 +44,17 @@ export const IQAMATH_OFFSETS: Record<string, number> = {
   Magrib: 10,
   Isha: 15,
 };
+
+/** Iqamath offsets during Ramadan (month 9) */
+export const RAMADAN_IQAMATH_OFFSETS: Record<string, number> = {
+  Subah: 15,   // adhan + 15 min
+  Luhar: 15,   // unchanged
+  Asr: 15,     // unchanged
+  Magrib: 20,  // adhan + 20 min
+};
+
+/** Fixed iqamah time for Isha during Ramadan */
+export const RAMADAN_ISHA_IQAMAH = '8:15 PM';
+
+/** Fixed time for Taraweeh prayer during Ramadan */
+export const RAMADAN_TARAWEEH_TIME = '8:30 PM';

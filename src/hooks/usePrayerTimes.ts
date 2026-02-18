@@ -50,7 +50,7 @@ function getEmptyPrayerList(): PrayerEntry[] {
   ];
 }
 
-export function getPrayerList(merged: MergedTimes | null, offsetMinutes = 0): PrayerEntry[] {
+export function getPrayerList(merged: MergedTimes | null, offsetMinutes = 0, isRamadan = false): PrayerEntry[] {
   if (!merged) return getEmptyPrayerList();
 
   const applyOffset = (time: string | null): string | null => {
@@ -64,6 +64,18 @@ export function getPrayerList(merged: MergedTimes | null, offsetMinutes = 0): Pr
   const asr = applyOffset(merged.asr_adhan);
   const magrib = applyOffset(merged.magrib_adhan);
   const isha = applyOffset(merged.isha_adhan);
+
+  if (isRamadan) {
+    return [
+      { name: 'Subah', adhan: subah, iqamath: addMinutesToTime(subah, 15), hasIqamath: true },
+      { name: 'Sunrise', adhan: sunrise, iqamath: null, hasIqamath: false },
+      { name: 'Luhar', adhan: luhar, iqamath: addMinutesToTime(luhar, IQAMATH_OFFSETS.Luhar), hasIqamath: true },
+      { name: 'Asr', adhan: asr, iqamath: addMinutesToTime(asr, IQAMATH_OFFSETS.Asr), hasIqamath: true },
+      { name: 'Magrib', adhan: magrib, iqamath: addMinutesToTime(magrib, 20), hasIqamath: true },
+      { name: 'Isha', adhan: isha, iqamath: '8:15 PM', hasIqamath: true },
+      { name: 'Taraweeh', adhan: '8:30 PM', iqamath: null, hasIqamath: false },
+    ];
+  }
 
   return [
     { name: 'Subah', adhan: subah, iqamath: addMinutesToTime(subah, IQAMATH_OFFSETS.Subah), hasIqamath: true },

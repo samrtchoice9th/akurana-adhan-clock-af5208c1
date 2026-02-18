@@ -19,7 +19,7 @@ const Index = () => {
   const { hijri } = useHijriDate();
   const { setIsRamadan, isRamadan } = useTheme();
   const { offsetMinutes, location } = useLocation();
-  const prayers = getPrayerList(merged, offsetMinutes);
+  const prayers = getPrayerList(merged, offsetMinutes, isRamadan);
   const nextIndex = getNextPrayerIndex(prayers, now);
   const countdown = getCountdown(prayers, nextIndex, now);
   const phase = nextIndex >= 0 ? getPrayerPhase(prayers[nextIndex], now) : 'passed';
