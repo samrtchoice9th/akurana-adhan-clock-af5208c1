@@ -21,8 +21,20 @@ export interface IbadahLog {
 
 const STORAGE_DEVICE_ID = 'akurana-device-id';
 
-function getDeviceId(): string {
-    return localStorage.getItem(STORAGE_DEVICE_ID) || 'unknown-device';
+function getOrCreateDeviceId(): string {
+    try {
+        const existing = localStorage.getItem(STORAGE_DEVICE_ID);
+        if (existing) return existing;
+
+        // Create new unique ID
+        const created = crypto.randomUUID();
+        localStorage.setItem(STORAGE_DEVICE_ID, created);
+        return created;
+    } catch (e) {
+        // Fallback if localStorage or crypto is unavailable
+        console.error('Failed to create device ID:', e);
+        return 'device-' + Math.random().toString(36).substring(2, 10);
+    }
 }
 
 export const MISSED_REASONS = [
@@ -44,7 +56,7 @@ export const CORRECTIVE_SUGGESTIONS: Record<string, string> = {
 export function useIbadah() {
     const [logs, setLogs] = useState<Record<string, IbadahLog>>({});
     const [loading, setLoading] = useState(true);
-    const deviceId = useMemo(() => getDeviceId(), []);
+    const deviceId = useMemo(() => getOrCreateDeviceId(), []);
 
     const fetchLogs = useCallback(async () => {
         setLoading(true);
