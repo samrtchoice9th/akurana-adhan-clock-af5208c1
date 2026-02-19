@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { getOrCreateDeviceId } from '@/lib/device';
 
 export type IbadahStatus = 'completed' | 'delayed' | 'missed' | 'none';
 
@@ -17,24 +18,6 @@ export interface IbadahLog {
     sadaqah: boolean;
     missed_reasons: Record<string, string>;
     notes?: string;
-}
-
-const STORAGE_DEVICE_ID = 'akurana-device-id';
-
-function getOrCreateDeviceId(): string {
-    try {
-        const existing = localStorage.getItem(STORAGE_DEVICE_ID);
-        if (existing) return existing;
-
-        // Create new unique ID
-        const created = crypto.randomUUID();
-        localStorage.setItem(STORAGE_DEVICE_ID, created);
-        return created;
-    } catch (e) {
-        // Fallback if localStorage or crypto is unavailable
-        console.error('Failed to create device ID:', e);
-        return 'device-' + Math.random().toString(36).substring(2, 10);
-    }
 }
 
 export const MISSED_REASONS = [
@@ -85,10 +68,10 @@ export function useIbadah() {
     const saveLog = async (day: string, updates: Partial<IbadahLog>) => {
         const existing = logs[day];
         const newLog = {
-            user_id: deviceId,
-            hijri_date: day,
             ...(existing || {}),
             ...updates,
+            user_id: deviceId, // Ensure the current device ID always wins
+            hijri_date: day,   // Ensure the correct day always wins
         };
 
         const { error } = await (supabase

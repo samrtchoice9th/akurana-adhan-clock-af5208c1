@@ -5,6 +5,8 @@ import { getFirebaseMessaging } from '@/lib/firebase';
 
 export type ReminderType = '10min' | '5min' | 'adhan' | 'iqamah';
 
+import { getOrCreateDeviceId } from '@/lib/device';
+
 const STORAGE_DEVICE_ID = 'akurana-device-id';
 const STORAGE_PROMPT_SHOWN = 'akurana-push-prompt-shown';
 
@@ -21,18 +23,6 @@ const defaultPrefs: NotificationPrefs = {
   adhan: false,
   iqamah: false,
 };
-
-function getOrCreateDeviceId(): string {
-  try {
-    const existing = localStorage.getItem(STORAGE_DEVICE_ID);
-    if (existing) return existing;
-    const created = crypto.randomUUID();
-    localStorage.setItem(STORAGE_DEVICE_ID, created);
-    return created;
-  } catch {
-    return 'unknown-device';
-  }
-}
 
 function getReminderTypes(prefs: NotificationPrefs): ReminderType[] {
   return [
