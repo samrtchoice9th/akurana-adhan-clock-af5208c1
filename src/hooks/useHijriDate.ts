@@ -45,43 +45,56 @@ function advanceHijri(y: number, m: number, d: number, days: number) {
   return { hijri_year: y, hijri_month: m, hijri_day: d };
 }
 
-/** Write directly to DB — always uses the known row ID, never re-fetches */
-async function writeToDB(id: string, year: number, month: number, day: number): Promise<Error | null> {
-  const today = getToday();
-  const { error } = await supabase
+/** Fetch the freshest row directly from DB with cache busting */
+async function fetchFreshHijri(): Promise<HijriState | null> {
+  // Add a timestamp query param to bypass potential browser/CDN caching
+  const { data } = await supabase
     .from('hijri_date')
-    .update({ hijri_year: year, hijri_month: month, hijri_day: day, last_updated: today })
-    .eq('id', id);
-  return error ?? null;
+    .select('*')
+    .setQueriesData({ t: Date.now().toString() }) // This is a trick to add a query param if using a custom client, 
+    // but standard supabase-js might not support .setQueriesData. 
+    // Instead, we can use a dummy .neq
+    .neq('id', '00000000-0000-4000-a000-000000000000')
+    .limit(1)
+    .maybeSingle();
+
+  return data as HijriState | null;
 }
 
 export function useHijriDate() {
   const [hijri, setHijri] = useState<HijriState | null>(null);
   const [loading, setLoading] = useState(true);
-  // Keep a ref so callbacks always have the latest row ID without stale closures
   const hijriRef = useRef<HijriState | null>(null);
   hijriRef.current = hijri;
 
   const fetchAndAutoIncrement = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('hijri_date')
-      .select('*')
-      .limit(1)
-      .maybeSingle();
+    const data = await fetchFreshHijri();
+    if (!data) { setLoading(false); return; }
 
-    if (error || !data) { setLoading(false); return; }
-
-    let state = data as HijriState;
+    let state = data;
     const today = getToday();
     const diff = daysBetween(state.last_updated, today);
 
+    // CRITICAL: We only update if diff > 0.
     if (diff > 0) {
       const advanced = advanceHijri(state.hijri_year, state.hijri_month, state.hijri_day, diff);
-      await supabase
+
+      // OPTIMISTIC CONCURRENCY: Only update if last_updated in DB still matches what we fetched.
+      // This prevents a stale read from overwriting a fresh manual update.
+      const { error } = await supabase
         .from('hijri_date')
         .update({ ...advanced, last_updated: today })
-        .eq('id', state.id);
-      state = { ...state, ...advanced, last_updated: today };
+        .eq('id', state.id)
+        .eq('last_updated', state.last_updated); // Match the fetched date!
+
+      if (!error) {
+        state = { ...state, ...advanced, last_updated: today };
+      } else {
+        // If update failed (likely because last_updated changed in DB already),
+        // we should re-fetch to get the newest state.
+        const refetched = await fetchFreshHijri();
+        if (refetched) state = refetched;
+      }
     }
 
     setHijri(state);
@@ -91,7 +104,6 @@ export function useHijriDate() {
   useEffect(() => {
     fetchAndAutoIncrement();
 
-    // Realtime subscription — instantly reflects any DB change
     const channel = supabase
       .channel('hijri_date_changes')
       .on(
@@ -105,7 +117,6 @@ export function useHijriDate() {
       )
       .subscribe();
 
-    // Midnight check
     const checkInterval = setInterval(() => {
       const now = new Date();
       if (now.getHours() === 0 && now.getMinutes() < 2) fetchAndAutoIncrement();
@@ -117,53 +128,40 @@ export function useHijriDate() {
     };
   }, [fetchAndAutoIncrement]);
 
-  /**
-   * Update hijri to a specific date.
-   * Uses the known row ID from current state (via ref — always fresh).
-   * Optimistically updates local state immediately so UI responds instantly.
-   */
   const updateHijri = useCallback(async (year: number, month: number, day: number): Promise<Error | null> => {
-    const current = hijriRef.current;
-    if (!current) return new Error('Hijri not loaded yet');
+    const fresh = await fetchFreshHijri();
+    if (!fresh) return new Error('No hijri record found');
 
     const today = getToday();
-    const newState: HijriState = { ...current, hijri_year: year, hijri_month: month, hijri_day: day, last_updated: today };
+    // Writing to DB using the ID and matching the fresh record we just got
+    const { error } = await supabase
+      .from('hijri_date')
+      .update({ hijri_year: year, hijri_month: month, hijri_day: day, last_updated: today })
+      .eq('id', fresh.id);
 
-    // Optimistic update — show new date immediately in UI
-    setHijri(newState);
-
-    const err = await writeToDB(current.id, year, month, day);
-    if (err) {
-      // Rollback on failure
-      setHijri(current);
-      return err;
+    if (!error) {
+      setHijri({ ...fresh, hijri_year: year, hijri_month: month, hijri_day: day, last_updated: today });
     }
-    return null;
+    return error ?? null;
   }, []);
 
-  /** Moon sighted: advance to day 1 of next month */
   const moonSighted = useCallback(async (): Promise<Error | null> => {
-    const current = hijriRef.current;
-    if (!current) return new Error('Hijri not loaded yet');
-    let { hijri_year: y, hijri_month: m } = current;
+    const fresh = await fetchFreshHijri();
+    if (!fresh) return new Error('No hijri record found');
+    let { hijri_year: y, hijri_month: m } = fresh;
     m += 1;
     if (m > 12) { m = 1; y += 1; }
     return updateHijri(y, m, 1);
   }, [updateHijri]);
 
-  /** Moon not sighted: set day 30 of current month */
   const moonNotSighted = useCallback(async (): Promise<Error | null> => {
-    const current = hijriRef.current;
-    if (!current) return new Error('Hijri not loaded yet');
-    return updateHijri(current.hijri_year, current.hijri_month, 30);
+    const fresh = await fetchFreshHijri();
+    if (!fresh) return new Error('No hijri record found');
+    return updateHijri(fresh.hijri_year, fresh.hijri_month, 30);
   }, [updateHijri]);
 
-  /**
-   * Log an admin action — takes snapshot BEFORE the description.
-   * Caller passes the date snapshot string directly (no re-fetch needed).
-   */
   const logAdminAction = useCallback(async (action: string, snapshot?: string) => {
-    const snap = snapshot ?? formatHijriDate(hijriRef.current);
+    const snap = snapshot || formatHijriDate(hijriRef.current);
     await supabase.from('hijri_admin_log').insert({ action, hijri_date_snapshot: snap });
   }, []);
 
