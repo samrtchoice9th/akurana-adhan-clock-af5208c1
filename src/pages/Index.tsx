@@ -10,7 +10,7 @@ import { NextPrayerCard } from '@/components/NextPrayerCard';
 import { PrayerRow } from '@/components/PrayerRow';
 import { JumuahBanner } from '@/components/JumuahBanner';
 import { HadithBanner } from '@/components/HadithBanner';
-import { Settings as SettingsIcon, Moon } from 'lucide-react';
+import { Settings as SettingsIcon, Moon, Trophy } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const Index = () => {
@@ -69,6 +69,18 @@ const Index = () => {
         </p>
         {hijriDisplay && (
           <p className="text-sm text-primary/80 mt-1">{hijriDisplay}</p>
+        )}
+
+        {isRamadan && (
+          <div className="mt-6">
+            <Link
+              to="/ramadan-chart"
+              className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 text-primary px-4 py-2 rounded-full text-sm font-bold animate-pulse hover:bg-primary/20 transition-all shadow-[0_0_15px_rgba(var(--primary),0.1)]"
+            >
+              <Trophy className="h-4 w-4" />
+              Ibadah Chart
+            </Link>
+          </div>
         )}
       </header>
 

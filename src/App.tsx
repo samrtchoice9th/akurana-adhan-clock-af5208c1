@@ -7,6 +7,7 @@ import { ThemeProvider } from "@/hooks/useTheme.tsx";
 import Index from "./pages/Index";
 import Admin from "./pages/Admin";
 import Settings from "./pages/Settings";
+import RamadanChart from "./pages/RamadanChart";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -22,6 +23,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/ramadan-chart" element={<RamadanChart />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
