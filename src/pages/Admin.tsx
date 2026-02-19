@@ -326,9 +326,10 @@ function HijriControlTab() {
       return;
     }
     setSaving(true);
+    const snapshot = formatHijriDate(hijri);
     const err = await updateHijri(y, m, d);
     if (!err) {
-      await logAdminAction(`manual_set:${d}/${m}/${y}`);
+      await logAdminAction(`manual_set:${d}/${m}/${y}`, snapshot);
       toast({ title: `✅ Hijri date set to ${d}/${m}/${y}` });
       await refreshLogs();
     } else {
@@ -398,9 +399,10 @@ function HijriControlTab() {
         </CardHeader>
         <CardContent className="p-4 pt-0 space-y-2">
           <Button size="sm" className="w-full" onClick={async () => {
+            const snapshot = formatHijriDate(hijri);
             const err = await moonSighted();
             if (!err) {
-              await logAdminAction('moon_sighted');
+              await logAdminAction('moon_sighted', snapshot);
               toast({ title: '🌙 Moon Sighted — New month started' });
               await refreshLogs();
             } else {
@@ -410,9 +412,10 @@ function HijriControlTab() {
             🌙 Moon Sighted (start new month)
           </Button>
           <Button size="sm" variant="outline" className="w-full" onClick={async () => {
+            const snapshot = formatHijriDate(hijri);
             const err = await moonNotSighted();
             if (!err) {
-              await logAdminAction('moon_not_sighted');
+              await logAdminAction('moon_not_sighted', snapshot);
               toast({ title: '❌ Moon Not Sighted — Day 30 set' });
               await refreshLogs();
             } else {
