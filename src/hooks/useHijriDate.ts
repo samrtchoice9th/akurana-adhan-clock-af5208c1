@@ -47,14 +47,9 @@ function advanceHijri(y: number, m: number, d: number, days: number) {
 
 /** Fetch the freshest row directly from DB with cache busting */
 async function fetchFreshHijri(): Promise<HijriState | null> {
-  // Add a timestamp query param to bypass potential browser/CDN caching
   const { data } = await supabase
     .from('hijri_date')
     .select('*')
-    .setQueriesData({ t: Date.now().toString() }) // This is a trick to add a query param if using a custom client, 
-    // but standard supabase-js might not support .setQueriesData. 
-    // Instead, we can use a dummy .neq
-    .neq('id', '00000000-0000-4000-a000-000000000000')
     .limit(1)
     .maybeSingle();
 
