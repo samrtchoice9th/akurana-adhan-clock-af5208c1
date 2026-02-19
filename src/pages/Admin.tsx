@@ -290,28 +290,56 @@ interface AdminLogEntry {
 }
 
 function HijriControlTab() {
-  const { hijri, loading, moonSighted, moonNotSighted, logAdminAction } = useHijriDate();
+  const { hijri, loading, updateHijri, moonSighted, moonNotSighted, logAdminAction } = useHijriDate();
   const { toast } = useToast();
   const [logs, setLogs] = useState<AdminLogEntry[]>([]);
+  const [manualYear, setManualYear] = useState('');
+  const [manualMonth, setManualMonth] = useState('');
+  const [manualDay, setManualDay] = useState('');
+  const [saving, setSaving] = useState(false);
 
+  const refreshLogs = async () => {
+    const { data } = await supabase.from('hijri_admin_log').select('*').order('created_at', { ascending: false }).limit(10);
+    if (data) setLogs(data as AdminLogEntry[]);
+  };
+
+  useEffect(() => { void refreshLogs(); }, []);
+
+  // Pre-fill manual fields whenever hijri loads
   useEffect(() => {
-    supabase
-      .from('hijri_admin_log')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(10)
-      .then(({ data }) => {
-        if (data) setLogs(data as AdminLogEntry[]);
-      });
-  }, []);
+    if (hijri) {
+      setManualYear(String(hijri.hijri_year));
+      setManualMonth(String(hijri.hijri_month));
+      setManualDay(String(hijri.hijri_day));
+    }
+  }, [hijri?.hijri_year, hijri?.hijri_month, hijri?.hijri_day]);
 
   if (loading) return <p className="text-muted-foreground mt-4">Loading...</p>;
   if (!hijri) return <p className="text-muted-foreground mt-4">No Hijri date record found.</p>;
 
-  const isDay29 = hijri.hijri_day === 29;
+  const handleManualSave = async () => {
+    const y = parseInt(manualYear, 10);
+    const m = parseInt(manualMonth, 10);
+    const d = parseInt(manualDay, 10);
+    if (!y || !m || !d || m < 1 || m > 12 || d < 1 || d > 30) {
+      toast({ title: 'Invalid date — check year, month (1-12), day (1-30)', variant: 'destructive' });
+      return;
+    }
+    setSaving(true);
+    const err = await updateHijri(y, m, d);
+    if (!err) {
+      await logAdminAction(`manual_set:${d}/${m}/${y}`);
+      toast({ title: `✅ Hijri date set to ${d}/${m}/${y}` });
+      await refreshLogs();
+    } else {
+      toast({ title: 'Error saving date', description: String(err), variant: 'destructive' });
+    }
+    setSaving(false);
+  };
 
   return (
     <div className="space-y-4 mt-4">
+      {/* Current date display */}
       <Card className="bg-card border-border">
         <CardContent className="p-4 text-center">
           <p className="text-xs text-muted-foreground mb-1">Current Hijri Date</p>
@@ -320,62 +348,83 @@ function HijriControlTab() {
         </CardContent>
       </Card>
 
-      {isDay29 ? (
-        <Alert className="border-secondary bg-secondary/10">
-          <Moon className="h-4 w-4 text-secondary" />
-          <AlertTitle className="text-secondary">Hijri Day 29 Reached</AlertTitle>
-          <AlertDescription className="text-foreground">
-            Moon sighting confirmation required. Choose an action:
-          </AlertDescription>
-          <div className="flex flex-col gap-2 mt-3">
-            <Button size="sm" className="w-full" onClick={async () => {
-              const err = await moonSighted();
-              if (!err) {
-                await logAdminAction('moon_sighted');
-                toast({ title: '🌙 Moon Sighted — New month started' });
-                const { data } = await supabase.from('hijri_admin_log').select('*').order('created_at', { ascending: false }).limit(10);
-                if (data) setLogs(data as AdminLogEntry[]);
-              } else {
-                toast({ title: 'Error', variant: 'destructive' });
-              }
-            }}>
-              🌙 Moon Sighted
-            </Button>
-            <Button size="sm" variant="outline" className="w-full" onClick={async () => {
-              const err = await moonNotSighted();
-              if (!err) {
-                await logAdminAction('moon_not_sighted');
-                toast({ title: '❌ Moon Not Sighted — Day 30 set' });
-                const { data } = await supabase.from('hijri_admin_log').select('*').order('created_at', { ascending: false }).limit(10);
-                if (data) setLogs(data as AdminLogEntry[]);
-              } else {
-                toast({ title: 'Error', variant: 'destructive' });
-              }
-            }}>
-              ❌ Moon Not Sighted
-            </Button>
-            <Button size="sm" variant="ghost" className="w-full" onClick={async () => {
-              await logAdminAction('decide_later');
-              toast({ title: '⏳ Decision deferred — system will auto-increment tomorrow' });
-              const { data } = await supabase.from('hijri_admin_log').select('*').order('created_at', { ascending: false }).limit(10);
-              if (data) setLogs(data as AdminLogEntry[]);
-            }}>
-              ⏳ Decide Later
-            </Button>
-          </div>
-        </Alert>
-      ) : (
-        <Card className="bg-card border-border">
-          <CardContent className="p-4 flex items-center gap-3">
-            <CheckCircle className="h-5 w-5 text-primary shrink-0" />
+      {/* Manual date override — always visible */}
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm text-primary">✏️ Manual Date Override</CardTitle>
+        </CardHeader>
+        <CardContent className="p-4 pt-0 space-y-3">
+          <div className="grid grid-cols-3 gap-2">
             <div>
-              <p className="text-sm font-medium text-foreground">Auto-increment active</p>
-              <p className="text-xs text-muted-foreground">Admin action available on day 29.</p>
+              <Label className="text-xs text-muted-foreground mb-1 block">Day (1-30)</Label>
+              <Input
+                type="number" min={1} max={30}
+                value={manualDay}
+                onChange={e => setManualDay(e.target.value)}
+                className="bg-muted border-border text-foreground text-center"
+              />
             </div>
-          </CardContent>
-        </Card>
-      )}
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1 block">Month (1-12)</Label>
+              <Input
+                type="number" min={1} max={12}
+                value={manualMonth}
+                onChange={e => setManualMonth(e.target.value)}
+                className="bg-muted border-border text-foreground text-center"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1 block">Year</Label>
+              <Input
+                type="number"
+                value={manualYear}
+                onChange={e => setManualYear(e.target.value)}
+                className="bg-muted border-border text-foreground text-center"
+              />
+            </div>
+          </div>
+          <Button className="w-full" onClick={handleManualSave} disabled={saving}>
+            {saving ? 'Saving...' : '💾 Save Date'}
+          </Button>
+        </CardContent>
+      </Card>
 
+      {/* Moon sighting — always visible */}
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm text-primary flex items-center gap-2">
+            <Moon className="h-4 w-4" /> Moon Sighting
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-4 pt-0 space-y-2">
+          <Button size="sm" className="w-full" onClick={async () => {
+            const err = await moonSighted();
+            if (!err) {
+              await logAdminAction('moon_sighted');
+              toast({ title: '🌙 Moon Sighted — New month started' });
+              await refreshLogs();
+            } else {
+              toast({ title: 'Error', description: String(err), variant: 'destructive' });
+            }
+          }}>
+            🌙 Moon Sighted (start new month)
+          </Button>
+          <Button size="sm" variant="outline" className="w-full" onClick={async () => {
+            const err = await moonNotSighted();
+            if (!err) {
+              await logAdminAction('moon_not_sighted');
+              toast({ title: '❌ Moon Not Sighted — Day 30 set' });
+              await refreshLogs();
+            } else {
+              toast({ title: 'Error', description: String(err), variant: 'destructive' });
+            }
+          }}>
+            ❌ Moon Not Sighted (set day 30)
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Admin action log */}
       {logs.length > 0 && (
         <Card className="bg-card border-border">
           <CardHeader className="pb-2">

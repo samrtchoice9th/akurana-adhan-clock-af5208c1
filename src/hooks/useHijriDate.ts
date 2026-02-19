@@ -52,16 +52,22 @@ function advanceHijri(y: number, m: number, d: number, days: number) {
   return { hijri_year: y, hijri_month: m, hijri_day: d };
 }
 
+/** Fetch the freshest row directly from DB (bypasses any React state) */
+async function fetchFreshHijri(): Promise<HijriState | null> {
+  const { data } = await supabase.from('hijri_date').select('*').limit(1).maybeSingle();
+  return data as HijriState | null;
+}
+
 export function useHijriDate() {
   const [hijri, setHijri] = useState<HijriState | null>(null);
   const [loading, setLoading] = useState(true);
   const midnightRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchAndAutoIncrement = useCallback(async () => {
-    const { data } = await supabase.from('hijri_date').select('*').limit(1).maybeSingle();
+    const data = await fetchFreshHijri();
     if (!data) { setLoading(false); return; }
 
-    let state = data as HijriState;
+    let state = data;
     const today = getToday();
     const diff = daysBetween(state.last_updated, today);
 
@@ -79,10 +85,9 @@ export function useHijriDate() {
   }, []);
 
   useEffect(() => {
-    // Initial fetch
     fetchAndAutoIncrement();
 
-    // Realtime subscription — instantly reflects any DB change (admin edits, external updates)
+    // Realtime subscription — instantly reflects any DB change
     const channel = supabase
       .channel('hijri_date_changes')
       .on(
@@ -96,7 +101,7 @@ export function useHijriDate() {
       )
       .subscribe();
 
-    // Check every 30s for midnight crossing so Hijri updates without reload
+    // Check every 30s for midnight crossing
     const checkInterval = setInterval(() => {
       const now = new Date();
       if (now.getHours() === 0 && now.getMinutes() < 2) {
@@ -111,37 +116,44 @@ export function useHijriDate() {
     };
   }, [fetchAndAutoIncrement]);
 
+  /** Always re-fetches fresh data from DB before writing — never uses stale state */
   const updateHijri = useCallback(async (year: number, month: number, day: number) => {
-    if (!hijri) return;
+    const fresh = await fetchFreshHijri();
+    if (!fresh) return new Error('No hijri record found');
     const today = getToday();
     const { error } = await supabase
       .from('hijri_date')
       .update({ hijri_year: year, hijri_month: month, hijri_day: day, last_updated: today })
-      .eq('id', hijri.id);
+      .eq('id', fresh.id);
     if (!error) {
-      setHijri(prev => prev ? { ...prev, hijri_year: year, hijri_month: month, hijri_day: day, last_updated: today } : null);
+      setHijri({ ...fresh, hijri_year: year, hijri_month: month, hijri_day: day, last_updated: today });
     }
     return error;
-  }, [hijri]);
+  }, []);
 
+  /** Moon sighted: advance to day 1 of next month — always reads fresh DB state */
   const moonSighted = useCallback(async () => {
-    if (!hijri) return;
-    let { hijri_year: y, hijri_month: m } = hijri;
+    const fresh = await fetchFreshHijri();
+    if (!fresh) return new Error('No hijri record found');
+    let { hijri_year: y, hijri_month: m } = fresh;
     m += 1;
     if (m > 12) { m = 1; y += 1; }
     return updateHijri(y, m, 1);
-  }, [hijri, updateHijri]);
+  }, [updateHijri]);
 
+  /** Moon not sighted: set day 30 of current month — always reads fresh DB state */
   const moonNotSighted = useCallback(async () => {
-    if (!hijri) return;
-    return updateHijri(hijri.hijri_year, hijri.hijri_month, 30);
-  }, [hijri, updateHijri]);
+    const fresh = await fetchFreshHijri();
+    if (!fresh) return new Error('No hijri record found');
+    return updateHijri(fresh.hijri_year, fresh.hijri_month, 30);
+  }, [updateHijri]);
 
   const logAdminAction = useCallback(async (action: string) => {
-    if (!hijri) return;
-    const snapshot = formatHijriDate(hijri);
+    const fresh = await fetchFreshHijri();
+    if (!fresh) return;
+    const snapshot = formatHijriDate(fresh);
     await supabase.from('hijri_admin_log').insert({ action, hijri_date_snapshot: snapshot });
-  }, [hijri]);
+  }, []);
 
   return { hijri, loading, updateHijri, moonSighted, moonNotSighted, logAdminAction, refetch: fetchAndAutoIncrement };
 }
