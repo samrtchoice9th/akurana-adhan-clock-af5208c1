@@ -28,7 +28,11 @@ if ('serviceWorker' in navigator) {
       appId: import.meta.env.VITE_FIREBASE_APP_ID ?? '',
     });
     navigator.serviceWorker.register(`/sw.js?${params.toString()}`).catch((e) => {
-      console.error('[main.tsx] Registration failed:', e);
+      console.error('[main.tsx] Unified Service Worker registration failed!', {
+        error: e,
+        message: e.message,
+        stack: e.stack
+      });
     });
   });
 }

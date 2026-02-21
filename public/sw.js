@@ -1,7 +1,3 @@
-/* eslint-disable no-undef */
-importScripts('https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/10.12.5/firebase-messaging-compat.js');
-
 const configUrl = new URL(self.location.href);
 const firebaseConfig = {
   apiKey: configUrl.searchParams.get('apiKey') || '',
@@ -13,20 +9,28 @@ const firebaseConfig = {
 };
 
 if (Object.values(firebaseConfig).every(Boolean)) {
-  firebase.initializeApp(firebaseConfig);
-  const messaging = firebase.messaging();
+  try {
+    importScripts('https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js');
+    importScripts('https://www.gstatic.com/firebasejs/10.12.5/firebase-messaging-compat.js');
 
-  messaging.onBackgroundMessage((payload) => {
-    console.log('[sw.js] Received background message:', payload);
-    const title = payload.notification?.title || 'Prayer Reminder';
-    const options = {
-      body: payload.notification?.body || 'Time for Salah',
-      icon: '/icons/icon-192.png',
-      badge: '/icons/icon-192.png',
-      data: payload.data || {},
-    };
-    self.registration.showNotification(title, options);
-  });
+    firebase.initializeApp(firebaseConfig);
+    const messaging = firebase.messaging();
+
+    messaging.onBackgroundMessage((payload) => {
+      console.log('[sw.js] Received background message:', payload);
+      const title = payload.notification?.title || 'Prayer Reminder';
+      const options = {
+        body: payload.notification?.body || 'Time for Salah',
+        icon: '/icons/icon-192.png',
+        badge: '/icons/icon-192.png',
+        data: payload.data || {},
+      };
+      self.registration.showNotification(title, options);
+    });
+    console.log('[sw.js] Firebase Messaging initialized successfully');
+  } catch (error) {
+    console.error('[sw.js] Failed to initialize Firebase Messaging:', error);
+  }
 }
 
 const CACHE_NAME = 'akurana-prayer-v3';
