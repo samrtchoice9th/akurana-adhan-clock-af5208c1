@@ -10,10 +10,18 @@ const firebaseConfig = {
 
 if (Object.values(firebaseConfig).every(Boolean)) {
   try {
+    console.log('[sw.js] Attempting to load Firebase scripts...');
     importScripts('https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js');
     importScripts('https://www.gstatic.com/firebasejs/10.12.5/firebase-messaging-compat.js');
 
+    if (typeof firebase === 'undefined') {
+      throw new Error('Firebase object not found after importScripts');
+    }
+
+    console.log('[sw.js] Initializing Firebase app...');
     firebase.initializeApp(firebaseConfig);
+
+    console.log('[sw.js] Initializing Firebase messaging...');
     const messaging = firebase.messaging();
 
     messaging.onBackgroundMessage((payload) => {
@@ -29,7 +37,11 @@ if (Object.values(firebaseConfig).every(Boolean)) {
     });
     console.log('[sw.js] Firebase Messaging initialized successfully');
   } catch (error) {
-    console.error('[sw.js] Failed to initialize Firebase Messaging:', error);
+    console.error('[sw.js] Failed to initialize Firebase Messaging:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack
+    });
   }
 }
 
