@@ -10,9 +10,9 @@ const firebaseConfig = {
 
 if (Object.values(firebaseConfig).every(Boolean)) {
   try {
-    console.log('[sw.js] Attempting to load Firebase scripts...');
-    importScripts('https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js');
-    importScripts('https://www.gstatic.com/firebasejs/10.12.5/firebase-messaging-compat.js');
+    console.log('[sw.js] Attempting to load local Firebase scripts...');
+    importScripts('/firebase-compat/firebase-app-compat.js');
+    importScripts('/firebase-compat/firebase-messaging-compat.js');
 
     if (typeof firebase === 'undefined') {
       throw new Error('Firebase object not found after importScripts');
