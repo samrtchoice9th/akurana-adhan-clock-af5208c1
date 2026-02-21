@@ -1,3 +1,34 @@
+/* eslint-disable no-undef */
+importScripts('https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/10.12.5/firebase-messaging-compat.js');
+
+const configUrl = new URL(self.location.href);
+const firebaseConfig = {
+  apiKey: configUrl.searchParams.get('apiKey') || '',
+  authDomain: configUrl.searchParams.get('authDomain') || '',
+  projectId: configUrl.searchParams.get('projectId') || '',
+  storageBucket: configUrl.searchParams.get('storageBucket') || '',
+  messagingSenderId: configUrl.searchParams.get('messagingSenderId') || '',
+  appId: configUrl.searchParams.get('appId') || '',
+};
+
+if (Object.values(firebaseConfig).every(Boolean)) {
+  firebase.initializeApp(firebaseConfig);
+  const messaging = firebase.messaging();
+
+  messaging.onBackgroundMessage((payload) => {
+    console.log('[sw.js] Received background message:', payload);
+    const title = payload.notification?.title || 'Prayer Reminder';
+    const options = {
+      body: payload.notification?.body || 'Time for Salah',
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
+      data: payload.data || {},
+    };
+    self.registration.showNotification(title, options);
+  });
+}
+
 const CACHE_NAME = 'akurana-prayer-v3';
 const ASSETS_TO_CACHE = [
   '/manifest.json',
@@ -56,10 +87,11 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      if (clientList.length > 0) {
-        return clientList[0].focus();
+      for (const client of clientList) {
+        if ('focus' in client) return client.focus();
       }
-      return clients.openWindow('/');
+      if (clients.openWindow) return clients.openWindow('/');
+      return null;
     })
   );
 });

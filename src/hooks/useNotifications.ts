@@ -35,7 +35,7 @@ function getReminderTypes(prefs: NotificationPrefs): ReminderType[] {
 
 const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent);
 
-function getMessagingServiceWorkerUrl() {
+function getServiceWorkerUrl() {
   const params = new URLSearchParams({
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY ?? '',
     authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ?? '',
@@ -45,7 +45,7 @@ function getMessagingServiceWorkerUrl() {
     appId: import.meta.env.VITE_FIREBASE_APP_ID ?? '',
   });
 
-  return `/firebase-messaging-sw.js?${params.toString()}`;
+  return `/sw.js?${params.toString()}`;
 }
 
 export function useNotifications(location: string, autoPrompt = false) {
@@ -62,13 +62,14 @@ export function useNotifications(location: string, autoPrompt = false) {
     if (!activeToken) return;
 
     const deviceId = getOrCreateDeviceId();
-
     if (!nextEnabled) {
+      console.log('[useNotifications] Disabling push tokens for device:', deviceId);
       await supabase.from('users_push_tokens').delete().eq('device_id', deviceId);
       return;
     }
 
     const types = getReminderTypes(nextPrefs);
+    console.log('[useNotifications] Syncing tokens with Supabase:', { deviceId, types });
     await supabase.from('users_push_tokens').delete().eq('device_id', deviceId);
     if (types.length === 0) return;
 
@@ -81,7 +82,10 @@ export function useNotifications(location: string, autoPrompt = false) {
       platform: isIOS() ? 'ios' : 'web',
     }));
 
-    await supabase.from('users_push_tokens').insert(rows);
+    console.log('[useNotifications] Inserting rows:', rows.length);
+    const { error } = await supabase.from('users_push_tokens').insert(rows);
+    if (error) console.error('[useNotifications] Sync error:', error);
+    else console.log('[useNotifications] Sync successful');
   }, [location, token]);
 
   const registerPush = useCallback(async () => {
@@ -92,12 +96,14 @@ export function useNotifications(location: string, autoPrompt = false) {
       setPermission(perm);
       if (perm !== 'granted') return;
 
-      const swReg = await navigator.serviceWorker.register(getMessagingServiceWorkerUrl());
+      const swReg = await navigator.serviceWorker.register(getServiceWorkerUrl());
+      console.log('[useNotifications] SW Registered');
       const messaging = await getFirebaseMessaging();
       if (!messaging) return;
 
       const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
       const fcmToken = await getToken(messaging, { vapidKey, serviceWorkerRegistration: swReg });
+      console.log('[useNotifications] FCM Token:', fcmToken ? 'Success' : 'Failed');
       if (!fcmToken) return;
       setToken(fcmToken);
       setEnabled(true);
@@ -115,7 +121,8 @@ export function useNotifications(location: string, autoPrompt = false) {
       if (Notification.permission !== 'granted') return;
 
       try {
-        const swReg = await navigator.serviceWorker.register(getMessagingServiceWorkerUrl());
+        const swReg = await navigator.serviceWorker.register(getServiceWorkerUrl());
+        console.log('[useNotifications] Auto-load SW Registered');
         const messaging = await getFirebaseMessaging();
         if (!messaging) return;
 
