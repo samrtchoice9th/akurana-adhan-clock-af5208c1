@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { getToken, onMessage } from 'firebase/messaging';
 import { supabase } from '@/integrations/supabase/client';
 import { getFirebaseMessaging } from '@/lib/firebase';
@@ -56,36 +56,43 @@ export function useNotifications(location: string, autoPrompt = false) {
   const [prefs, setPrefs] = useState<NotificationPrefs>(defaultPrefs);
   const [token, setToken] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const isSyncing = useRef(false);
 
   const syncToken = useCallback(async (nextEnabled: boolean, nextPrefs: NotificationPrefs, nextToken?: string | null) => {
-    const activeToken = nextToken ?? token;
-    if (!activeToken) return;
+    if (isSyncing.current) return;
+    isSyncing.current = true;
+    try {
+      const activeToken = nextToken ?? token;
+      if (!activeToken) return;
 
-    const deviceId = getOrCreateDeviceId();
-    if (!nextEnabled) {
-      console.log('[useNotifications] Disabling push tokens for device:', deviceId);
+      const deviceId = getOrCreateDeviceId();
+      if (!nextEnabled) {
+        console.log('[useNotifications] Disabling push tokens for device:', deviceId);
+        await supabase.from('users_push_tokens').delete().eq('device_id', deviceId);
+        return;
+      }
+
+      const types = getReminderTypes(nextPrefs);
+      console.log('[useNotifications] Syncing tokens with Supabase:', { deviceId, types });
       await supabase.from('users_push_tokens').delete().eq('device_id', deviceId);
-      return;
+      if (types.length === 0) return;
+
+      const rows = types.map((reminderType) => ({
+        token: activeToken,
+        device_id: deviceId,
+        location,
+        reminder_type: reminderType,
+        notifications_enabled: true,
+        platform: isIOS() ? 'ios' : 'web',
+      }));
+
+      console.log('[useNotifications] Inserting rows:', rows.length);
+      const { error } = await supabase.from('users_push_tokens').insert(rows);
+      if (error) console.error('[useNotifications] Sync error:', error);
+      else console.log('[useNotifications] Sync successful');
+    } finally {
+      isSyncing.current = false;
     }
-
-    const types = getReminderTypes(nextPrefs);
-    console.log('[useNotifications] Syncing tokens with Supabase:', { deviceId, types });
-    await supabase.from('users_push_tokens').delete().eq('device_id', deviceId);
-    if (types.length === 0) return;
-
-    const rows = types.map((reminderType) => ({
-      token: activeToken,
-      device_id: deviceId,
-      location,
-      reminder_type: reminderType,
-      notifications_enabled: true,
-      platform: isIOS() ? 'ios' : 'web',
-    }));
-
-    console.log('[useNotifications] Inserting rows:', rows.length);
-    const { error } = await supabase.from('users_push_tokens').insert(rows);
-    if (error) console.error('[useNotifications] Sync error:', error);
-    else console.log('[useNotifications] Sync successful');
   }, [location, token]);
 
   const registerPush = useCallback(async () => {
