@@ -14,33 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      hadiths: {
-        Row: {
-          created_at: string
-          hadith_english: string | null
-          hadith_tamil: string
-          id: string
-          is_active: boolean
-          reference: string | null
-        }
-        Insert: {
-          created_at?: string
-          hadith_english?: string | null
-          hadith_tamil: string
-          id?: string
-          is_active?: boolean
-          reference?: string | null
-        }
-        Update: {
-          created_at?: string
-          hadith_english?: string | null
-          hadith_tamil?: string
-          id?: string
-          is_active?: boolean
-          reference?: string | null
-        }
-        Relationships: []
-      }
       daily_prayer_times: {
         Row: {
           asr: string
@@ -74,69 +47,30 @@ export type Database = {
         }
         Relationships: []
       }
-      notification_sent_log: {
+      hadiths: {
         Row: {
           created_at: string
-          dedupe_key: string
+          hadith_english: string | null
+          hadith_tamil: string
           id: string
-          prayer_name: string
-          reminder_type: string
-          sent_at: string
-          token: string
+          is_active: boolean
+          reference: string | null
         }
         Insert: {
           created_at?: string
-          dedupe_key: string
+          hadith_english?: string | null
+          hadith_tamil: string
           id?: string
-          prayer_name: string
-          reminder_type: string
-          sent_at?: string
-          token: string
+          is_active?: boolean
+          reference?: string | null
         }
         Update: {
           created_at?: string
-          dedupe_key?: string
+          hadith_english?: string | null
+          hadith_tamil?: string
           id?: string
-          prayer_name?: string
-          reminder_type?: string
-          sent_at?: string
-          token?: string
-        }
-        Relationships: []
-      }
-      users_push_tokens: {
-        Row: {
-          created_at: string
-          device_id: string
-          id: string
-          location: string | null
-          notifications_enabled: boolean
-          platform: string | null
-          reminder_type: string
-          token: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          device_id: string
-          id?: string
-          location?: string | null
-          notifications_enabled?: boolean
-          platform?: string | null
-          reminder_type: string
-          token: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          device_id?: string
-          id?: string
-          location?: string | null
-          notifications_enabled?: boolean
-          platform?: string | null
-          reminder_type?: string
-          token?: string
-          updated_at?: string
+          is_active?: boolean
+          reference?: string | null
         }
         Relationships: []
       }
@@ -185,6 +119,36 @@ export type Database = {
           hijri_year?: number
           id?: string
           last_updated?: string
+        }
+        Relationships: []
+      }
+      notification_sent_log: {
+        Row: {
+          created_at: string
+          dedupe_key: string
+          id: string
+          prayer_name: string
+          reminder_type: string
+          sent_at: string
+          token: string
+        }
+        Insert: {
+          created_at?: string
+          dedupe_key: string
+          id?: string
+          prayer_name: string
+          reminder_type: string
+          sent_at?: string
+          token: string
+        }
+        Update: {
+          created_at?: string
+          dedupe_key?: string
+          id?: string
+          prayer_name?: string
+          reminder_type?: string
+          sent_at?: string
+          token?: string
         }
         Relationships: []
       }
@@ -277,6 +241,105 @@ export type Database = {
           subah_adhan?: string | null
           subah_iqamath?: string | null
           sunrise?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      ramadan_ibadah_logs: {
+        Row: {
+          asr_status: string | null
+          created_at: string | null
+          dhikr: boolean | null
+          dhuhr_status: string | null
+          fajr_status: string | null
+          hijri_date: string
+          id: string
+          isha_status: string | null
+          maghrib_status: string | null
+          masjid_id: string | null
+          missed_reasons: Json | null
+          notes: string | null
+          quran_minutes: number | null
+          sadaqah: boolean | null
+          tahajjud: boolean | null
+          taraweeh_status: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          asr_status?: string | null
+          created_at?: string | null
+          dhikr?: boolean | null
+          dhuhr_status?: string | null
+          fajr_status?: string | null
+          hijri_date: string
+          id?: string
+          isha_status?: string | null
+          maghrib_status?: string | null
+          masjid_id?: string | null
+          missed_reasons?: Json | null
+          notes?: string | null
+          quran_minutes?: number | null
+          sadaqah?: boolean | null
+          tahajjud?: boolean | null
+          taraweeh_status?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          asr_status?: string | null
+          created_at?: string | null
+          dhikr?: boolean | null
+          dhuhr_status?: string | null
+          fajr_status?: string | null
+          hijri_date?: string
+          id?: string
+          isha_status?: string | null
+          maghrib_status?: string | null
+          masjid_id?: string | null
+          missed_reasons?: Json | null
+          notes?: string | null
+          quran_minutes?: number | null
+          sadaqah?: boolean | null
+          tahajjud?: boolean | null
+          taraweeh_status?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      users_push_tokens: {
+        Row: {
+          created_at: string
+          device_id: string
+          id: string
+          location: string | null
+          notifications_enabled: boolean
+          platform: string | null
+          reminder_type: string
+          token: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          device_id: string
+          id?: string
+          location?: string | null
+          notifications_enabled?: boolean
+          platform?: string | null
+          reminder_type: string
+          token: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          device_id?: string
+          id?: string
+          location?: string | null
+          notifications_enabled?: boolean
+          platform?: string | null
+          reminder_type?: string
+          token?: string
           updated_at?: string
         }
         Relationships: []
