@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { format } from 'date-fns';
 import { useClock } from '@/hooks/useClock';
 import { usePrayerTimes, getPrayerList, getNextPrayerIndex, getCountdown, getPrayerPhase } from '@/hooks/usePrayerTimes';
-import { useHijriDate, formatHijriDate } from '@/hooks/useHijriDate';
+import { useHijriDate, formatHijriDate, getDisplayHijri } from '@/hooks/useHijriDate';
 import { useNotifications } from '@/hooks/useNotifications';
 import { useTheme } from '@/hooks/useTheme';
 import { useLocation } from '@/hooks/useLocation';
@@ -23,14 +23,19 @@ const Index = () => {
   const nextIndex = getNextPrayerIndex(prayers, now);
   const countdown = getCountdown(prayers, nextIndex, now);
   const phase = nextIndex >= 0 ? getPrayerPhase(prayers[nextIndex], now) : 'passed';
-  const hijriDisplay = formatHijriDate(hijri);
 
-  // Auto-activate Ramadan theme
+  // Get Maghrib time for Hijri date adjustment
+  const maghribTime = merged?.magrib_adhan ?? null;
+  // Display Hijri date adjusted for Maghrib (Islamic day starts at Maghrib)
+  const displayHijri = getDisplayHijri(hijri, maghribTime, now);
+  const hijriDisplay = formatHijriDate(displayHijri);
+
+  // Auto-activate Ramadan theme based on display Hijri
   useEffect(() => {
-    if (hijri) {
-      setIsRamadan(hijri.hijri_month === 9);
+    if (displayHijri) {
+      setIsRamadan(displayHijri.hijri_month === 9);
     }
-  }, [hijri?.hijri_month, setIsRamadan]);
+  }, [displayHijri?.hijri_month, setIsRamadan]);
 
   // Initialize FCM notification permission flow on first app open
   useNotifications(location, true);

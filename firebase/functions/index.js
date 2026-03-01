@@ -220,7 +220,7 @@ exports.sendPrayerReminders = onSchedule(
           });
 
           sentLogRows.push({
-            token_id: notification.tokenRecordId,
+            token: notification.deviceToken,
             prayer_name: notification.prayerName,
             reminder_type: notification.reminderType,
             sent_at: new Date().toISOString(),
