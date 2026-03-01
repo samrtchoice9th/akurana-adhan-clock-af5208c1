@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, createContext, useContext, ReactNode, CSSProperties } from 'react';
+import { useState, useEffect, useCallback, createContext, useContext, ReactNode } from 'react';
 
 export type ThemeColor =
   | 'black-gold'
@@ -168,17 +168,17 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const setStyle = useCallback((style: DesignStyle) => setPrefs((prev) => ({ ...prev, style })), []);
 
   const vars = isRamadan ? RAMADAN_VARS : THEME_VARS[prefs.color];
-  const styleVars: CSSProperties = { '--radius': STYLE_RADIUS[prefs.style] };
+  const styleVars: Record<string, string> = { '--radius': STYLE_RADIUS[prefs.style] };
 
   for (const [key, value] of Object.entries(vars)) {
-    styleVars[key as keyof CSSProperties] = value;
+    styleVars[key] = value;
   }
 
   const styleClass = prefs.style === 'glass' ? 'style-glass' : '';
 
   return (
     <ThemeContext.Provider value={{ ...prefs, isRamadan, setColor, setStyle, setIsRamadan }}>
-      <div className={`min-h-screen bg-background text-foreground ${styleClass}`} style={styleVars}>
+      <div className={`min-h-screen bg-background text-foreground ${styleClass}`} style={styleVars as React.CSSProperties}>
         {children}
       </div>
     </ThemeContext.Provider>

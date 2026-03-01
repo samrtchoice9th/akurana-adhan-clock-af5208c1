@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 const HIJRI_MONTHS: Record<number, string> = {
@@ -45,7 +45,15 @@ function advanceHijri(y: number, m: number, d: number, days: number) {
   return { hijri_year: y, hijri_month: m, hijri_day: d };
 }
 
-/** Fetch the freshest row directly from DB with cache busting */
+/**
+ * Advance a Hijri state by 1 day (for display purposes after Maghrib).
+ */
+export function advanceHijriByOne(state: HijriState): HijriState {
+  const advanced = advanceHijri(state.hijri_year, state.hijri_month, state.hijri_day, 1);
+  return { ...state, ...advanced };
+}
+
+/** Fetch the freshest row directly from DB */
 async function fetchFreshHijri(): Promise<HijriState | null> {
   const { data } = await supabase
     .from('hijri_date')
@@ -54,6 +62,53 @@ async function fetchFreshHijri(): Promise<HijriState | null> {
     .maybeSingle();
 
   return data as HijriState | null;
+}
+
+/**
+ * Parse a time string like "6:30 PM" into minutes since midnight.
+ */
+function parseTimeToMinutes(timeStr: string | null): number | null {
+  if (!timeStr) return null;
+  const cleaned = timeStr.trim().toUpperCase();
+  const match = cleaned.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/);
+  if (!match) return null;
+
+  let hours = parseInt(match[1], 10);
+  const minutes = parseInt(match[2], 10);
+  const period = match[3];
+
+  if (period === 'PM' && hours !== 12) hours += 12;
+  if (period === 'AM' && hours === 12) hours = 0;
+
+  return hours * 60 + minutes;
+}
+
+/**
+ * Check if current time is past Maghrib.
+ * maghribTime should be a string like "6:30 PM".
+ */
+export function isPastMaghrib(maghribTime: string | null, now: Date = new Date()): boolean {
+  const maghribMins = parseTimeToMinutes(maghribTime);
+  if (maghribMins === null) return false;
+  const currentMins = now.getHours() * 60 + now.getMinutes();
+  return currentMins >= maghribMins;
+}
+
+/**
+ * Get the display Hijri date adjusted for Maghrib.
+ * In Islam, the new day begins at Maghrib. So after Maghrib,
+ * we show the next Hijri day.
+ */
+export function getDisplayHijri(
+  baseHijri: HijriState | null,
+  maghribTime: string | null,
+  now: Date = new Date()
+): HijriState | null {
+  if (!baseHijri) return null;
+  if (isPastMaghrib(maghribTime, now)) {
+    return advanceHijriByOne(baseHijri);
+  }
+  return baseHijri;
 }
 
 export function useHijriDate() {
@@ -70,23 +125,18 @@ export function useHijriDate() {
     const today = getToday();
     const diff = daysBetween(state.last_updated, today);
 
-    // CRITICAL: We only update if diff > 0.
     if (diff > 0) {
       const advanced = advanceHijri(state.hijri_year, state.hijri_month, state.hijri_day, diff);
 
-      // OPTIMISTIC CONCURRENCY: Only update if last_updated in DB still matches what we fetched.
-      // This prevents a stale read from overwriting a fresh manual update.
       const { error } = await supabase
         .from('hijri_date')
         .update({ ...advanced, last_updated: today })
         .eq('id', state.id)
-        .eq('last_updated', state.last_updated); // Match the fetched date!
+        .eq('last_updated', state.last_updated);
 
       if (!error) {
         state = { ...state, ...advanced, last_updated: today };
       } else {
-        // If update failed (likely because last_updated changed in DB already),
-        // we should re-fetch to get the newest state.
         const refetched = await fetchFreshHijri();
         if (refetched) state = refetched;
       }
@@ -128,7 +178,6 @@ export function useHijriDate() {
     if (!fresh) return new Error('No hijri record found');
 
     const today = getToday();
-    // Writing to DB using the ID and matching the fresh record we just got
     const { error } = await supabase
       .from('hijri_date')
       .update({ hijri_year: year, hijri_month: month, hijri_day: day, last_updated: today })
