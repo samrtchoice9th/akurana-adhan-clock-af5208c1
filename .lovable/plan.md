@@ -1,142 +1,114 @@
-# Prayer App Major Update: Smart Card, Hadith Banner, Location System, Bug Fixes
 
-## Bug Fix 1: Push Notifications
 
-**Problem:** The notification check uses `diff === 5` (exact minute match). Since the interval runs every 30 seconds, if the check fires at 4m 45s and then 5m 15s, it skips the exact 5-minute mark entirely.
+# Fully Automated Prayer Reminder System
 
-**Fix:** Change the condition to a range: `diff <= 5 && diff > 0` and track fired notifications to prevent duplicates. Also use the service worker's `showNotification` API instead of `new Notification()` for better PWA support.
+## Current State
 
-**File:** `src/hooks/useNotifications.ts`
+The system already has most pieces in place:
+- **Firebase Cloud Function** (`sendPrayerReminders`): Runs every minute via Cloud Scheduler, reads `daily_prayer_times`, sends FCM push notifications, deduplicates via `notification_sent_log`, and auto-removes invalid tokens.
+- **Edge Function** (`sync-daily-prayer-times`): Reads `prayer_time_changes`, applies carry-forward logic, upserts into `daily_prayer_times`.
+- **Tables**: `users_push_tokens` (5 active tokens), `daily_prayer_times` (1 row for today), `notification_sent_log` (empty -- notifications haven't fired yet).
 
----
+**The missing piece**: No automated daily trigger for `sync-daily-prayer-times`. It only runs when an admin uploads Excel data.
 
-## Bug Fix 2: Hijri Date Auto-Increment
+## Plan
 
-**Current state:** Database shows `24 Shaaban 1447, last_updated: 2026-02-14`. The code logic is correct but the service worker caches old pages aggressively, preventing fresh code from running on return visits.
+### 1. Create `system_logs` Table
 
-**Fix:** Update the service worker to use a network-first strategy for HTML/JS and bump the cache version. Also add a check interval so the Hijri date updates at midnight without requiring a page reload.
+A new table to log automated edge function executions for debugging.
 
-**File:** `public/sw.js`, `src/hooks/useHijriDate.ts`
+Columns: `id`, `function_name`, `status` (success/error), `message`, `created_at`
 
----
+RLS: public read/insert (no auth in this app).
 
-## Feature 1: Three-Phase Prayer Card
+### 2. Update `sync-daily-prayer-times` Edge Function
 
-Replace the current single-state "Next Prayer" card with a three-phase smart card:
+Add logging to `system_logs` after each run. Add `verify_jwt = false` to `config.toml` so pg_cron can call it without auth issues.
 
-```text
-PHASE 1: Before Adhan
-+----------------------------+
-| NEXT: Luhar                |
-| Adhan: 12:30 PM            |
-| Countdown: in 45m          |
-+----------------------------+
+### 3. Set Up pg_cron for Daily Sync
 
-PHASE 2: After Adhan, Before Iqamah  
-+----------------------------+
-| Iqamah in 12m              |
-| Luhar Iqamah: 12:45 PM     |
-|                             |
-| Prepare for Sunnah Salah    |
-| Use Miswak before prayer    |
-+----------------------------+
+Enable `pg_cron` and `pg_net` extensions, then schedule:
+- `sync-daily-prayer-times` at **00:05 Asia/Colombo** daily
+- This ensures `daily_prayer_times` is populated before any prayer time the next day
 
-PHASE 3: After Iqamah
--> Automatically shows Phase 1 for next prayer
+### 4. Firebase Function -- No Changes Needed
+
+The existing Firebase function already:
+- Runs every minute
+- Checks `daily_prayer_times` for matching prayer times
+- Sends FCM notifications with deduplication
+- Removes invalid tokens
+- Handles all reminder types (10min, 5min, adhan, iqamah)
+
+It was already fixed in the previous session (token field name fix). It just needs to be **redeployed to Firebase** by you (the admin) -- Lovable cannot deploy Firebase functions.
+
+### 5. Why NOT a Supabase "trigger-prayer-reminders" Edge Function
+
+The Firebase Cloud Function already runs every minute on its own Cloud Scheduler. Adding a Supabase edge function to trigger it would be redundant and add unnecessary complexity/cost. The current architecture (Firebase handles sending, Supabase handles data) is clean and reliable.
+
+## Technical Details
+
+### Database Migration
+
+```sql
+-- Enable extensions
+CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA pg_catalog;
+CREATE EXTENSION IF NOT EXISTS pg_net WITH SCHEMA extensions;
+
+-- system_logs table
+CREATE TABLE public.system_logs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  function_name text NOT NULL,
+  status text NOT NULL DEFAULT 'success',
+  message text,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.system_logs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Anyone can read system_logs" ON public.system_logs FOR SELECT USING (true);
+CREATE POLICY "Anyone can insert system_logs" ON public.system_logs FOR INSERT WITH CHECK (true);
+
+-- Index for querying recent logs
+CREATE INDEX idx_system_logs_created ON public.system_logs (created_at DESC);
 ```
 
-### Logic changes needed:
+### pg_cron Schedule (via SQL insert tool)
 
-- `getNextPrayerIndex` currently only checks if adhan time > current time. Must be reworked to consider iqamah time too:
-  - If `current < adhan` --> Phase 1 (countdown to adhan)
-  - If `adhan <= current < iqamah` --> Phase 2 (countdown to iqamah)
-  - If `current >= iqamah` --> skip to next prayer
-- Add a new `getPrayerPhase()` function returning `'before-adhan' | 'before-iqamah' | 'passed'`
-- Update `getCountdown()` to return countdown to either adhan or iqamah based on phase
-- Redesign `NextPrayerCard` component for both phases with the sunnah subtitle in Phase 2
+```sql
+SELECT cron.schedule(
+  'sync-daily-prayer-times',
+  '35 18 * * *',  -- 00:05 AM Sri Lanka (UTC+5:30) = 18:35 UTC previous day
+  $$
+  SELECT net.http_post(
+    url := 'https://dvdiflgkitqywaaplobz.supabase.co/functions/v1/sync-daily-prayer-times',
+    headers := '{"Content-Type": "application/json", "Authorization": "Bearer <anon_key>"}'::jsonb,
+    body := '{}'::jsonb
+  ) AS request_id;
+  $$
+);
+```
 
-**Files:** `src/hooks/usePrayerTimes.ts`, `src/components/NextPrayerCard.tsx`, `src/pages/Index.tsx`
+### Edge Function Update (`sync-daily-prayer-times`)
 
----
+- Add `system_logs` insert on success and failure
+- Keep existing carry-forward logic unchanged
 
-## Feature 2: Hadith Top Banner
+### Config Update (`supabase/config.toml`)
 
-### Database
+```toml
+[functions.sync-daily-prayer-times]
+verify_jwt = false
+```
 
-New table: `hadiths`
+## Files to Create/Modify
 
+1. **Database migration**: Create `system_logs` table, enable extensions
+2. **`supabase/functions/sync-daily-prayer-times/index.ts`**: Add logging to `system_logs`
+3. **pg_cron schedule**: SQL to set up daily cron job
 
-| Column         | Type        | Notes          |
-| -------------- | ----------- | -------------- |
-| id             | uuid (PK)   | auto-generated |
-| hadith_english | text        | nullable       |
-| hadith_tamil   | text        | not null       |
-| reference      | text        | nullable       |
-| is_active      | boolean     | default false  |
-| created_at     | timestamptz | default now()  |
+## Post-Implementation Checklist
 
+- Redeploy the Firebase Cloud Function with the `token` field fix (must be done manually via `firebase deploy --only functions`)
+- Verify `daily_prayer_times` is populated each day by checking `system_logs`
+- Test a notification by checking `notification_sent_log` after a prayer time passes
 
-RLS: public read (SELECT), public insert/update (for admin usage -- matches existing pattern).
-
-### Banner Component
-
-New component `src/components/HadithBanner.tsx`:
-
-- Fetches the active hadith on mount
-- Shows a sliding top banner with hadith text and reference
-- Auto-hides after 15 seconds
-- Close button (X) for manual dismiss
-- Elegant fade-in animation
-
-### Admin Section
-
-Add a third tab "Hadith" in the admin panel:
-
-- Input fields for English/Tamil text, and reference
-- Active toggle switch
-- Save button
-- Shows current active hadith
-- Only one hadith can be active at a time (saving a new active one deactivates others)
-
-**Files:** `src/components/HadithBanner.tsx` (new), `src/pages/Admin.tsx`, `src/pages/Index.tsx`
-
----
-
-## Feature 3: Location Selector
-
-### Settings Page Addition
-
-Add a "Location" card in Settings with 3 options:
-
-- Central Province (default, no offset)
-- Western Province (+3 minutes to all adhan times)
-- Eastern Province (-3 minutes to all adhan times)
-
-### Logic
-
-- Store selected location in localStorage (`akurana-location`)
-- New hook `src/hooks/useLocation.ts` to manage location state
-- Modify `getPrayerList()` in `usePrayerTimes.ts` to accept a minute offset parameter
-- Apply the offset to all adhan times before calculating iqamah (so iqamah also shifts correctly)
-- Changes reflect instantly via React state (no refresh needed)
-
-**Files:** `src/hooks/useLocation.ts` (new), `src/hooks/usePrayerTimes.ts`, `src/pages/Settings.tsx`
-
----
-
-## Files Summary
-
-
-| File                                | Action                                       |
-| ----------------------------------- | -------------------------------------------- |
-| `src/hooks/useNotifications.ts`     | Fix range check for 5-min notification       |
-| `src/hooks/useHijriDate.ts`         | Add midnight refresh interval                |
-| `public/sw.js`                      | Bump cache version, improve caching strategy |
-| `src/hooks/usePrayerTimes.ts`       | Add 3-phase logic, location offset support   |
-| `src/components/NextPrayerCard.tsx` | Redesign for Phase 1/2/3 display             |
-| `src/pages/Index.tsx`               | Integrate hadith banner, pass phase data     |
-| `src/components/HadithBanner.tsx`   | New: hadith top banner component             |
-| `src/hooks/useLocation.ts`          | New: location preference hook                |
-| `src/pages/Admin.tsx`               | Add Hadith Manager tab                       |
-| `src/pages/Settings.tsx`            | Add Location Selector card                   |
-| Database migration                  | Create `hadiths` table with RLS              |
