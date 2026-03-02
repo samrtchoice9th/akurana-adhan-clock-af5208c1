@@ -308,6 +308,30 @@ export type Database = {
         }
         Relationships: []
       }
+      system_logs: {
+        Row: {
+          created_at: string
+          function_name: string
+          id: string
+          message: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          function_name: string
+          id?: string
+          message?: string | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          function_name?: string
+          id?: string
+          message?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
       users_push_tokens: {
         Row: {
           created_at: string

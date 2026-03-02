@@ -5,25 +5,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-interface PrayerTimeChange {
-  effective_from: string;
-  subah_adhan: string | null;
-  sunrise: string | null;
-  luhar_adhan: string | null;
-  asr_adhan: string | null;
-  magrib_adhan: string | null;
-  isha_adhan: string | null;
-}
-
-// Map from prayer_time_changes field names to daily_prayer_times field names
-const FIELD_MAP: Record<string, string> = {
-  subah_adhan: "fajr",
-  luhar_adhan: "dhuhr",
-  asr_adhan: "asr",
-  magrib_adhan: "maghrib",
-  isha_adhan: "isha",
-};
-
 function normalizeTime(timeStr: string | null): string | null {
   if (!timeStr) return null;
   const cleaned = timeStr.trim().toUpperCase();
@@ -37,20 +18,32 @@ function normalizeTime(timeStr: string | null): string | null {
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 }
 
+async function logToSystem(supabase: any, status: string, message: string) {
+  try {
+    await supabase.from("system_logs").insert({
+      function_name: "sync-daily-prayer-times",
+      status,
+      message,
+    });
+  } catch (e) {
+    console.error("Failed to write system_log:", e);
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+  try {
     // Get the date to sync (default: today in Sri Lanka timezone)
     const url = new URL(req.url);
     const dateParam = url.searchParams.get("date");
-    
+
     const now = new Date();
     const sriLankaDate = dateParam || new Intl.DateTimeFormat("en-CA", {
       timeZone: "Asia/Colombo",
@@ -71,6 +64,7 @@ Deno.serve(async (req) => {
     }
 
     if (!changes || changes.length === 0) {
+      await logToSystem(supabase, "error", `No prayer time data found for ${sriLankaDate}`);
       return new Response(JSON.stringify({ error: "No prayer time data found" }), {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -115,10 +109,13 @@ Deno.serve(async (req) => {
       throw new Error(`Failed to upsert daily_prayer_times: ${upsertError.message}`);
     }
 
+    await logToSystem(supabase, "success", `Synced ${sriLankaDate}: ${JSON.stringify(dailyRow)}`);
+
     return new Response(JSON.stringify({ success: true, date: sriLankaDate, data: dailyRow }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
+    await logToSystem(supabase, "error", error.message);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
