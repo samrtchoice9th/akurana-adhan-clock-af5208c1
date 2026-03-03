@@ -55,6 +55,7 @@ export function useNotifications(location: string, autoPrompt = false) {
   );
   const [prefs, setPrefs] = useState<NotificationPrefs>(defaultPrefs);
   const [token, setToken] = useState<string | null>(null);
+  const hasLoadedRef = useRef(false);
   const [busy, setBusy] = useState(false);
   const isSyncing = useRef(false);
 
@@ -128,17 +129,24 @@ export function useNotifications(location: string, autoPrompt = false) {
       if (Notification.permission !== 'granted') return;
 
       try {
-        const swReg = await navigator.serviceWorker.register(getServiceWorkerUrl());
-        console.log('[useNotifications] Auto-load SW Registered');
-        const messaging = await getFirebaseMessaging();
-        if (!messaging) return;
+        // Try to get FCM token, but don't bail if it fails
+        let fcmToken: string | null = null;
+        try {
+          const swReg = await navigator.serviceWorker.register(getServiceWorkerUrl());
+          console.log('[useNotifications] Auto-load SW Registered');
+          const messaging = await getFirebaseMessaging();
+          if (messaging) {
+            const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
+            fcmToken = await getToken(messaging, { vapidKey, serviceWorkerRegistration: swReg });
+          }
+        } catch (fcmErr) {
+          console.warn('[useNotifications] FCM token retrieval failed during load, will restore from DB:', fcmErr);
+        }
 
-        const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
-        const fcmToken = await getToken(messaging, { vapidKey, serviceWorkerRegistration: swReg });
-        if (!fcmToken || cancelled) return;
+        if (cancelled) return;
+        if (fcmToken) setToken(fcmToken);
 
-        setToken(fcmToken);
-
+        // Always check DB for existing preferences regardless of FCM token status
         const deviceId = getOrCreateDeviceId();
         const { data, error } = await supabase
           .from('users_push_tokens')
@@ -146,7 +154,10 @@ export function useNotifications(location: string, autoPrompt = false) {
           .eq('device_id', deviceId)
           .eq('notifications_enabled', true);
 
-        if (error || cancelled) return;
+        if (error || cancelled) {
+          if (error) console.error('[useNotifications] DB query error during load:', error);
+          return;
+        }
 
         if (!data || data.length === 0) {
           setEnabled(false);
@@ -163,8 +174,10 @@ export function useNotifications(location: string, autoPrompt = false) {
 
         setEnabled(true);
         setPrefs(nextPrefs);
-      } catch {
-        // Ignore initialization failures and allow manual enable flow.
+      } catch (err) {
+        console.error('[useNotifications] loadExistingState failed:', err);
+      } finally {
+        if (!cancelled) hasLoadedRef.current = true;
       }
     }
 
@@ -215,6 +228,7 @@ export function useNotifications(location: string, autoPrompt = false) {
   }, []);
 
   useEffect(() => {
+    if (!hasLoadedRef.current) return; // Skip sync during initial load
     if (!enabled || !token) return;
     void syncToken(true, prefs);
   }, [enabled, token, location, prefs, syncToken]);

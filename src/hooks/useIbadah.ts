@@ -48,7 +48,9 @@ export function useIbadah() {
             .select('*')
             .eq('user_id', deviceId);
 
-        if (!error && data) {
+        if (error) {
+            console.error('[useIbadah] fetchLogs error:', error);
+        } else if (data) {
             const logsMap: Record<string, IbadahLog> = {};
             data.forEach((row: any) => {
                 logsMap[row.hijri_date] = {
@@ -67,21 +69,26 @@ export function useIbadah() {
 
     const saveLog = async (day: string, updates: Partial<IbadahLog>) => {
         const existing = logs[day];
-        const newLog = {
+        const merged = {
             ...(existing || {}),
             ...updates,
-            user_id: deviceId, // Ensure the current device ID always wins
-            hijri_date: day,   // Ensure the correct day always wins
+            user_id: deviceId,
+            hijri_date: day,
         };
+
+        // Strip database-generated fields to avoid upsert conflicts
+        const { id, created_at, updated_at, masjid_id, ...payload } = merged as any;
 
         const { error } = await (supabase
             .from('ramadan_ibadah_logs' as any) as any)
-            .upsert(newLog, { onConflict: 'user_id, hijri_date' });
+            .upsert(payload, { onConflict: 'user_id, hijri_date' });
 
-        if (!error) {
+        if (error) {
+            console.error('[useIbadah] saveLog error:', error);
+        } else {
             setLogs(prev => ({
                 ...prev,
-                [day]: newLog as IbadahLog,
+                [day]: merged as IbadahLog,
             }));
         }
         return error;
