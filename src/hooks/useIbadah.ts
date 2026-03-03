@@ -43,6 +43,7 @@ export function useIbadah() {
 
     const fetchLogs = useCallback(async () => {
         setLoading(true);
+        console.log('[useIbadah] fetchLogs with deviceId:', deviceId);
         const { data, error } = await (supabase
             .from('ramadan_ibadah_logs' as any) as any)
             .select('*')
@@ -51,6 +52,7 @@ export function useIbadah() {
         if (error) {
             console.error('[useIbadah] fetchLogs error:', error);
         } else if (data) {
+            console.log('[useIbadah] fetchLogs returned', data.length, 'rows');
             const logsMap: Record<string, IbadahLog> = {};
             data.forEach((row: any) => {
                 logsMap[row.hijri_date] = {
@@ -68,6 +70,7 @@ export function useIbadah() {
     }, [fetchLogs]);
 
     const saveLog = async (day: string, updates: Partial<IbadahLog>) => {
+        console.log('[useIbadah] saveLog day:', day, 'deviceId:', deviceId);
         const existing = logs[day];
         const merged = {
             ...(existing || {}),
