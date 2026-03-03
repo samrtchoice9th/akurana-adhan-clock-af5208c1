@@ -1,113 +1,43 @@
 
 
-# Supabase-Only Prayer Reminder System
+# Fix Plan: Three Issues
 
-## Architecture Change
+## Investigation Findings
 
-Replace Firebase Cloud Scheduler with Supabase pg_cron. The new flow:
+### 1. Asr Notifications -- NOT a code bug
+The `notification_sent_log` confirms Asr notifications **are being sent successfully** for all registered tokens (both `10min` and `5min` types) on 2026-03-03 and 2026-03-02. The backend is working correctly. If a specific device isn't receiving them, it's a device-level delivery issue (e.g., notification permissions, Do Not Disturb mode, battery optimization killing the service worker). No code change needed here.
 
-```text
-pg_cron (every minute)
-  |
-  v
-Supabase Edge Function: send-prayer-reminders
-  |
-  +--> Reads daily_prayer_times (today's times)
-  +--> Reads users_push_tokens (active tokens)
-  +--> Calculates which reminders match current minute
-  +--> Deduplicates via notification_sent_log
-  +--> Calls FCM HTTP v1 API directly
-  +--> Logs results to system_logs
-  +--> Removes invalid tokens
-```
+### 2. Notification Toggle Not Persisting
+**Root cause:** In `useNotifications.ts`, the `loadExistingState` function (lines 123-176) runs on mount to restore the toggle state from the database. However:
+- The entire function is wrapped in a `try/catch` that **silently swallows all errors** (line 166-168)
+- If `getToken()` or SW registration fails (common on reload), the function exits early without setting `enabled=true`
+- Additionally, when `loadExistingState` successfully sets `enabled=true` and new `prefs`, the sync effect (line 217-220) fires and **deletes + re-inserts all rows** unnecessarily, creating a race condition window
 
-No Firebase Scheduler. No Blaze plan requirement for scheduling. Firebase is only used as a push delivery API.
+**Fix:**
+- Add console error logging inside the catch block
+- Skip the sync effect during initial load by adding a `hasLoadedRef` guard
+- Make `loadExistingState` more resilient: if FCM token retrieval fails, still check the database for existing preferences and set `enabled=true` based on stored data
 
-## What Already Exists (No Changes Needed)
+### 3. Ibadah Chart Data Not Persisting
+**Root cause:** In `useIbadah.ts`, the `fetchLogs` function (lines 44-62) queries `ramadan_ibadah_logs` using `as any` type casts and **silently ignores errors** -- if the query fails, `logs` stays as empty `{}`. The error variable is checked (`if (!error && data)`) but there's no logging when it fails.
 
-- `daily_prayer_times` table with today's data
-- `users_push_tokens` table with 5 active tokens
-- `notification_sent_log` table for deduplication
-- `system_logs` table for execution logging
-- `sync-daily-prayer-times` edge function + its pg_cron job (daily at 00:05 AM Colombo)
-- pg_cron and pg_net extensions already enabled
+Additionally, the `saveLog` function (lines 68-88) uses `upsert` with `onConflict: 'user_id, hijri_date'` but the `newLog` object spreads `existing` which may include the database `id` field. On a fresh page load where `logs` is empty (due to a failed fetch), saving creates new rows instead of upserting, potentially causing duplicate key errors that are silently swallowed.
 
-## New Components
+**Fix:**
+- Add `console.error` logging for fetch and save errors
+- Strip database-generated fields (`id`, `created_at`, `updated_at`, `masjid_id`) from the upsert payload to avoid conflicts
+- Ensure `fetchLogs` is called after navigation back (it already is via `useEffect`, but errors need visibility)
 
-### 1. Secret: FIREBASE_SERVICE_ACCOUNT_JSON
+## Changes
 
-The FCM HTTP v1 API requires OAuth2 authentication using a Google service account. You will need to:
-1. Go to Firebase Console -> Project Settings -> Service Accounts
-2. Click "Generate new private key" to download the JSON file
-3. Provide the JSON contents as a secret
+### File 1: `src/hooks/useNotifications.ts`
+- Add `hasLoadedRef` to prevent sync effect from firing during initial load
+- Add error logging in the `loadExistingState` catch block
+- If FCM token retrieval fails but permission is granted, still query DB to restore toggle state
+- Guard sync effect: skip when `hasLoadedRef.current` is false
 
-This replaces the need for Firebase Admin SDK -- the edge function will generate OAuth2 tokens directly.
-
-### 2. Edge Function: `send-prayer-reminders`
-
-A new Supabase Edge Function that runs every minute (triggered by pg_cron). It replicates all logic currently in the Firebase Cloud Function:
-
-- Get current time in Asia/Colombo timezone
-- Fetch today's prayer times from `daily_prayer_times`
-- Fetch all enabled push tokens from `users_push_tokens`
-- For each token+prayer combination, calculate reminder time based on `reminder_type` (10min, 5min, adhan, iqamah)
-- Skip if reminder time does not equal current minute
-- Deduplicate against `notification_sent_log`
-- Send via FCM HTTP v1 API: `POST https://fcm.googleapis.com/v1/projects/akurana-prayer-app/messages:send`
-- Log sent notifications to `notification_sent_log`
-- Delete invalid/expired tokens from `users_push_tokens`
-- Log execution summary to `system_logs`
-
-### 3. pg_cron Job: Every Minute
-
-Schedule the edge function to run every minute using pg_cron + pg_net:
-
-```sql
-SELECT cron.schedule(
-  'send-prayer-reminders',
-  '* * * * *',
-  $$ SELECT net.http_post(
-    url := 'https://dvdiflgkitqywaaplobz.supabase.co/functions/v1/send-prayer-reminders',
-    headers := '{"Content-Type": "application/json", "Authorization": "Bearer <anon_key>"}'::jsonb,
-    body := '{}'::jsonb
-  ) AS request_id; $$
-);
-```
-
-### 4. Config Update
-
-Add `verify_jwt = false` for the new function in `supabase/config.toml` so pg_cron can call it.
-
-## FCM HTTP v1 Auth Flow (Inside Edge Function)
-
-The edge function handles OAuth2 token generation internally:
-
-1. Parse the service account JSON from the secret
-2. Create a JWT signed with the service account's RSA private key
-3. Exchange the JWT for a Google OAuth2 access token (1-hour validity, cached)
-4. Use the access token to call FCM HTTP v1 API
-
-This is a standard Google service account auth flow -- no Firebase Admin SDK needed.
-
-## Files to Create/Modify
-
-1. **`supabase/functions/send-prayer-reminders/index.ts`** -- New edge function with all reminder logic + FCM HTTP v1 integration
-2. **pg_cron schedule** -- SQL to set up every-minute cron job (via insert tool, not migration)
-
-## What Happens to the Firebase Cloud Function
-
-The existing `firebase/functions/index.js` remains in the codebase for reference but is no longer needed for scheduling. You do NOT need to deploy it. All scheduling and sending is handled by Supabase.
-
-## Production Safety
-
-- **Idempotent**: Deduplication via `notification_sent_log` with unique `dedupe_key` (date:tokenId:prayer:reminderType)
-- **No duplicate notifications**: Checked before every send
-- **Invalid token cleanup**: Automatic removal on FCM 404/UNREGISTERED errors
-- **Graceful failure**: Each notification send is independent; one failure does not block others
-- **Logging**: Every run logged to `system_logs` with candidate/sent/failed counts
-- **Timezone-safe**: All time comparisons use `Asia/Colombo` via `Intl.DateTimeFormat`
-
-## Required User Action
-
-Provide the Firebase service account JSON key (downloaded from Firebase Console -> Project Settings -> Service Accounts -> Generate new private key). This will be stored as a backend secret.
+### File 2: `src/hooks/useIbadah.ts`
+- Add `console.error` logging when `fetchLogs` query fails
+- Strip non-upsertable fields from `saveLog` payload (remove `id`, `created_at`, `updated_at`, `masjid_id`)
+- Add error logging when `saveLog` fails
 
