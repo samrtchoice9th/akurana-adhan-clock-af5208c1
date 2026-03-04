@@ -1,40 +1,159 @@
 
 
-# Fix: Ibadah Chart Data Not Persisting Across Navigation
+# Login System for Ibadah Chart Personalization
 
-## Root Cause
+## Overview
 
-There are **10 different device IDs** in the database for what appears to be a small number of users. This means the `deviceId` is regenerating on page reloads instead of being read back from localStorage.
+Add a lightweight authentication system so each user has a unique account. Ibadah data will be linked to the authenticated user's ID instead of the volatile device ID. The login/signup flow will be accessible from the Ibadah Chart page (redirecting unauthenticated users) and optionally from Settings.
 
-The likely cause: on non-secure contexts (HTTP or Lovable preview iframe), `crypto.randomUUID()` is unavailable, so the fallback generates a new `dev-XXXX` ID. If localStorage is cleared (e.g., by the preview iframe resetting, browser clearing storage, or private browsing), a new ID is generated each time, orphaning all previously saved data.
+## Database Changes
 
-## Plan
+### 1. Create `profiles` table
 
-### 1. Add robust deviceId logging and validation
+```sql
+CREATE TABLE public.profiles (
+  id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  full_name text NOT NULL,
+  masjid_name text,
+  city text,
+  province text,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
 
-Add `console.log` in `useIbadah.ts` to log the deviceId being used for fetch and save operations, making issues immediately visible in the console.
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
-### 2. Fix the fetch to also try recovering orphaned data
+CREATE POLICY "Users can read own profile" ON public.profiles
+  FOR SELECT TO authenticated USING (auth.uid() = id);
 
-When `fetchLogs` returns 0 results for the current deviceId, attempt a secondary lookup: check if there's recent data saved from this browser by looking at the most recent `user_id` that has data. This is a safety net, not a primary fix.
+CREATE POLICY "Users can update own profile" ON public.profiles
+  FOR UPDATE TO authenticated USING (auth.uid() = id);
 
-### 3. Make deviceId more resilient in `device.ts`
+CREATE POLICY "Users can insert own profile" ON public.profiles
+  FOR INSERT TO authenticated WITH CHECK (auth.uid() = id);
 
-- Add a fallback to `sessionStorage` if `localStorage` fails
-- Log a warning when a NEW deviceId is generated (vs. reading an existing one)
-- Never return `'unknown-device'` or random fallbacks -- these create orphaned data
+CREATE TRIGGER set_profiles_updated_at
+  BEFORE UPDATE ON public.profiles
+  FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+```
 
-### 4. Add `refetchOnMount` behavior
+### 2. Auto-create profile on signup (trigger)
 
-In the `RamadanChart` component, ensure `fetchLogs` is called every time the chart page is navigated to (not just on initial hook mount). Use a key or manual trigger to force re-fetch.
+```sql
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public AS $$
+BEGIN
+  INSERT INTO public.profiles (id, full_name)
+  VALUES (NEW.id, COALESCE(NEW.raw_user_meta_data->>'full_name', ''));
+  RETURN NEW;
+END;
+$$;
 
-## Files to Modify
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+```
 
-1. **`src/lib/device.ts`** -- Add logging, sessionStorage fallback, prevent orphaned IDs
-2. **`src/hooks/useIbadah.ts`** -- Add deviceId logging on fetch/save
-3. **`src/pages/RamadanChart.tsx`** -- No changes needed (already uses the hook correctly)
+### 3. Update `ramadan_ibadah_logs` RLS policies
 
-## Technical Details
+Update existing RLS policies so authenticated users can only access their own rows:
 
-The core fix is ensuring `getOrCreateDeviceId()` never silently generates a new ID when old data exists. Adding `console.warn` when a new ID is generated will make debugging trivial. The sessionStorage fallback ensures that even if localStorage is unavailable (iframe restrictions), the ID persists within the session.
+```sql
+-- Drop old open policies
+DROP POLICY "Anyone can insert their own logs" ON public.ramadan_ibadah_logs;
+DROP POLICY "Anyone can select their own logs" ON public.ramadan_ibadah_logs;
+DROP POLICY "Anyone can update their own logs" ON public.ramadan_ibadah_logs;
+
+-- New policies using auth.uid()
+CREATE POLICY "Authenticated users insert own logs" ON public.ramadan_ibadah_logs
+  FOR INSERT TO authenticated WITH CHECK (user_id = auth.uid()::text);
+
+CREATE POLICY "Authenticated users select own logs" ON public.ramadan_ibadah_logs
+  FOR SELECT TO authenticated USING (user_id = auth.uid()::text);
+
+CREATE POLICY "Authenticated users update own logs" ON public.ramadan_ibadah_logs
+  FOR UPDATE TO authenticated USING (user_id = auth.uid()::text);
+```
+
+## New Files
+
+### 1. `src/hooks/useAuth.ts`
+
+Auth hook wrapping Supabase auth:
+- `user`, `session`, `loading` state
+- `signUp(email, password, metadata)` -- metadata includes full_name, masjid_name, city, province
+- `signIn(email, password)`
+- `signOut()`
+- `onAuthStateChange` listener set up before `getSession()`
+
+### 2. `src/pages/Auth.tsx`
+
+A single page with Login/Register tabs:
+- **Login tab**: Email + Password fields
+- **Register tab**: Email, Password, Full Name, Masjid Name, City, Province fields
+- After successful login/signup, redirect to `/ramadan-chart`
+- Clean design matching existing theme (cards, primary colors)
+
+### 3. `src/components/AuthGuard.tsx`
+
+A wrapper component that checks auth state and redirects to `/auth` if not logged in. Used to protect the Ramadan Chart route.
+
+## Modified Files
+
+### 1. `src/hooks/useIbadah.ts`
+
+- Replace `deviceId` with `user.id` from auth context
+- If user is not authenticated, return empty state (no anonymous tracking)
+- `saveLog` uses `auth.uid()` as `user_id`
+
+### 2. `src/App.tsx`
+
+- Add `/auth` route pointing to `Auth.tsx`
+- Wrap `/ramadan-chart` route with `AuthGuard`
+- Provide auth context at app level
+
+### 3. `src/pages/RamadanChart.tsx`
+
+- Display user's name and masjid from profile in the header
+- Add logout button
+
+### 4. `src/pages/Settings.tsx`
+
+- Add a "Login / Account" card section showing login status
+- If logged in: show name, masjid, logout button
+- If not logged in: link to `/auth`
+
+## Auth Flow
+
+```text
+User opens /ramadan-chart
+  |
+  +--> AuthGuard checks session
+  |      |
+  |      +--> No session → redirect to /auth
+  |      +--> Has session → render chart
+  |
+  /auth page
+  |
+  +--> Register: email, password, full_name, masjid_name, city, province
+  |      +--> signUp() with metadata
+  |      +--> Trigger creates profile row
+  |      +--> Email verification required (no auto-confirm)
+  |
+  +--> Login: email, password
+         +--> signIn()
+         +--> Redirect to /ramadan-chart
+```
+
+## Data Migration Note
+
+Existing device-based data in `ramadan_ibadah_logs` will remain but won't be accessible to new authenticated users (different `user_id`). This is acceptable since the old device-ID approach was unreliable anyway. If needed, a manual migration script could reassign old rows to new user IDs, but this is outside the current scope.
+
+## Security
+
+- Email verification required before login (no auto-confirm)
+- RLS policies restrict data to authenticated user's own rows only
+- Profile data protected by RLS
+- No client-side role checks or localStorage-based auth
 
