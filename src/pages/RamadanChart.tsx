@@ -6,12 +6,20 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { Trophy, Calendar as CalendarIcon, ArrowLeft, Target, Heart, BookOpen, AlertCircle } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Trophy, Calendar as CalendarIcon, ArrowLeft, Target, Heart, BookOpen, AlertCircle, LogOut } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function RamadanChart() {
     const { logs, loading, saveLog, calculateScore, getWeeklyReport } = useIbadah();
+    const { profile, signOut } = useAuth();
+    const navigate = useNavigate();
     const [selectedDay, setSelectedDay] = useState<number | null>(null);
+
+    const handleLogout = async () => {
+        await signOut();
+        navigate('/auth', { replace: true });
+    };
 
     if (loading) {
         return <div className="flex items-center justify-center p-12">Loading Chart...</div>;
@@ -43,11 +51,23 @@ export default function RamadanChart() {
                     <Link to="/" className="p-2 hover:bg-muted rounded-full transition-colors">
                         <ArrowLeft className="h-5 w-5" />
                     </Link>
-                    <h1 className="text-2xl font-bold text-primary">Ibadah Chart</h1>
+                    <div>
+                        <h1 className="text-2xl font-bold text-primary">Ibadah Chart</h1>
+                        {profile && (
+                            <p className="text-xs text-muted-foreground">
+                                {profile.full_name}{profile.masjid_name ? ` • ${profile.masjid_name}` : ''}
+                            </p>
+                        )}
+                    </div>
                 </div>
-                <Badge variant="outline" className="px-3 py-1 text-sm bg-primary/5 border-primary/20 text-primary">
-                    Ramadan 1447 AH
-                </Badge>
+                <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="px-3 py-1 text-sm bg-primary/5 border-primary/20 text-primary">
+                        Ramadan 1447 AH
+                    </Badge>
+                    <button onClick={handleLogout} className="p-2 hover:bg-muted rounded-full transition-colors text-muted-foreground hover:text-foreground" title="Logout">
+                        <LogOut className="h-4 w-4" />
+                    </button>
+                </div>
             </div>
 
             {/* Summary Score */}

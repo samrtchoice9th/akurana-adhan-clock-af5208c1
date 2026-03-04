@@ -1,11 +1,10 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { getOrCreateDeviceId } from '@/lib/device';
 
 export type IbadahStatus = 'completed' | 'delayed' | 'missed' | 'none';
 
 export interface IbadahLog {
-    hijri_date: string; // Day 1-30 as string
+    hijri_date: string;
     fajr_status: IbadahStatus;
     dhuhr_status: IbadahStatus;
     asr_status: IbadahStatus;
@@ -39,15 +38,33 @@ export const CORRECTIVE_SUGGESTIONS: Record<string, string> = {
 export function useIbadah() {
     const [logs, setLogs] = useState<Record<string, IbadahLog>>({});
     const [loading, setLoading] = useState(true);
-    const deviceId = useMemo(() => getOrCreateDeviceId(), []);
+    const [userId, setUserId] = useState<string | null>(null);
+
+    // Get authenticated user ID
+    useEffect(() => {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            setUserId(session?.user?.id ?? null);
+        });
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            setUserId(session?.user?.id ?? null);
+        });
+
+        return () => subscription.unsubscribe();
+    }, []);
 
     const fetchLogs = useCallback(async () => {
+        if (!userId) {
+            setLogs({});
+            setLoading(false);
+            return;
+        }
         setLoading(true);
-        console.log('[useIbadah] fetchLogs with deviceId:', deviceId);
-        const { data, error } = await (supabase
-            .from('ramadan_ibadah_logs' as any) as any)
+        console.log('[useIbadah] fetchLogs with userId:', userId);
+        const { data, error } = await supabase
+            .from('ramadan_ibadah_logs')
             .select('*')
-            .eq('user_id', deviceId);
+            .eq('user_id', userId);
 
         if (error) {
             console.error('[useIbadah] fetchLogs error:', error);
@@ -63,27 +80,30 @@ export function useIbadah() {
             setLogs(logsMap);
         }
         setLoading(false);
-    }, [deviceId]);
+    }, [userId]);
 
     useEffect(() => {
         fetchLogs();
     }, [fetchLogs]);
 
     const saveLog = async (day: string, updates: Partial<IbadahLog>) => {
-        console.log('[useIbadah] saveLog day:', day, 'deviceId:', deviceId);
+        if (!userId) {
+            console.error('[useIbadah] Cannot save: user not authenticated');
+            return { message: 'Not authenticated' };
+        }
+        console.log('[useIbadah] saveLog day:', day, 'userId:', userId);
         const existing = logs[day];
         const merged = {
             ...(existing || {}),
             ...updates,
-            user_id: deviceId,
+            user_id: userId,
             hijri_date: day,
         };
 
-        // Strip database-generated fields to avoid upsert conflicts
         const { id, created_at, updated_at, masjid_id, ...payload } = merged as any;
 
-        const { error } = await (supabase
-            .from('ramadan_ibadah_logs' as any) as any)
+        const { error } = await supabase
+            .from('ramadan_ibadah_logs')
             .upsert(payload, { onConflict: 'user_id, hijri_date' });
 
         if (error) {
@@ -100,7 +120,7 @@ export function useIbadah() {
     const calculateScore = (dayLog: IbadahLog | undefined) => {
         if (!dayLog) return 0;
         let score = 0;
-        let maxScore = 50 + 5 + 5 + 5; // 5 prayers * 10 + Taraweeh + Tahajjud + Dhikr/Sadaqah (Simplified)
+        let maxScore = 50 + 5 + 5 + 5;
 
         const prayers = ['fajr_status', 'dhuhr_status', 'asr_status', 'maghrib_status', 'isha_status'];
         prayers.forEach(p => {
@@ -113,10 +133,8 @@ export function useIbadah() {
         if (dayLog.dhikr) score += 5;
         if (dayLog.sadaqah) score += 5;
 
-        // Quran: 1 point per 10 mins, cap at 10 points (100 mins)
         score += Math.min(10, Math.floor(dayLog.quran_minutes / 10));
-
-        maxScore += 10; // Add quran cap to max
+        maxScore += 10;
 
         return Math.round((score / maxScore) * 100);
     };
@@ -125,7 +143,6 @@ export function useIbadah() {
         const logArray = Object.values(logs).sort((a, b) => parseInt(a.hijri_date) - parseInt(b.hijri_date));
         if (logArray.length < 3) return null;
 
-        // Simplified logic: Analyze last 7 items
         const recent = logArray.slice(-7);
         let missedFajr = 0;
         let totalPrayers = 0;
@@ -151,12 +168,7 @@ export function useIbadah() {
             suggestion = 'Try to prioritize your obligatory prayers. Small adjustments to your schedule can make a big difference.';
         }
 
-        return {
-            completionRate,
-            avgQuran,
-            missedFajr,
-            suggestion,
-        };
+        return { completionRate, avgQuran, missedFajr, suggestion };
     };
 
     return {
@@ -165,6 +177,6 @@ export function useIbadah() {
         saveLog,
         calculateScore,
         getWeeklyReport,
-        deviceId,
+        userId,
     };
 }

@@ -1,10 +1,12 @@
-import { ArrowLeft, Palette, Layout, Check, Bell, Gem, Coffee, Trees, Factory, Grape, Flame, MapPin } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { ArrowLeft, Palette, Layout, Check, Bell, Gem, Coffee, Trees, Factory, Grape, Flame, MapPin, User, LogOut } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
+import { Button } from '@/components/ui/button';
 import { useTheme, ThemeColor, DesignStyle } from '@/hooks/useTheme.tsx';
 import { useNotifications } from '@/hooks/useNotifications';
 import { useLocation, LocationOption } from '@/hooks/useLocation';
+import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 
 const COLORS: { value: ThemeColor; label: string; desc: string; preview: string; icon: typeof Gem }[] = [
@@ -32,6 +34,13 @@ export default function Settings() {
   const { color, style, isRamadan, setColor, setStyle } = useTheme();
   const { location, setLocation } = useLocation();
   const { enabled, permission, toggle, prefs, setPreference, busy, iosNeedsHomescreen } = useNotifications(location);
+  const { user, profile, signOut } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/auth', { replace: true });
+  };
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center px-4 py-6 max-w-md mx-auto">
@@ -41,6 +50,37 @@ export default function Settings() {
         </Link>
         <h1 className="text-lg font-bold text-primary tracking-wide">Settings</h1>
       </header>
+
+      {/* Account Section */}
+      <Card className="w-full bg-card border-border mb-4">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm text-primary flex items-center gap-2">
+            <User className="h-4 w-4" /> Account
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-4 pt-0">
+          {user ? (
+            <div className="space-y-2">
+              <div className="text-sm text-foreground">
+                <p className="font-semibold">{profile?.full_name || 'User'}</p>
+                <p className="text-xs text-muted-foreground">{user.email}</p>
+                {profile?.masjid_name && (
+                  <p className="text-xs text-muted-foreground mt-1">{profile.masjid_name}</p>
+                )}
+              </div>
+              <Button variant="outline" size="sm" onClick={handleLogout} className="w-full mt-2">
+                <LogOut className="h-4 w-4 mr-2" /> Sign Out
+              </Button>
+            </div>
+          ) : (
+            <Link to="/auth">
+              <Button variant="outline" size="sm" className="w-full">
+                Sign in to track your Ibadah
+              </Button>
+            </Link>
+          )}
+        </CardContent>
+      </Card>
 
       {isRamadan && (
         <Card className="w-full bg-primary/10 border-primary/30 mb-4">
