@@ -245,6 +245,36 @@ export type Database = {
         }
         Relationships: []
       }
+      profiles: {
+        Row: {
+          city: string | null
+          created_at: string | null
+          full_name: string
+          id: string
+          masjid_name: string | null
+          province: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          city?: string | null
+          created_at?: string | null
+          full_name?: string
+          id: string
+          masjid_name?: string | null
+          province?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          city?: string | null
+          created_at?: string | null
+          full_name?: string
+          id?: string
+          masjid_name?: string | null
+          province?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       ramadan_ibadah_logs: {
         Row: {
           asr_status: string | null
