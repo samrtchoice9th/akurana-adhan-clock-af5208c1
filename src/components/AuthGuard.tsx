@@ -8,6 +8,16 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
 
   useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) {
+        setAuthenticated(false);
+        navigate('/auth', { replace: true });
+      } else {
+        setAuthenticated(true);
+      }
+      setChecking(false);
+    });
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) {
         navigate('/auth', { replace: true });
@@ -16,6 +26,8 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       }
       setChecking(false);
     });
+
+    return () => subscription.unsubscribe();
   }, [navigate]);
 
   if (checking) {

@@ -40,7 +40,6 @@ export function useIbadah() {
     const [loading, setLoading] = useState(true);
     const [userId, setUserId] = useState<string | null>(null);
 
-    // Get authenticated user ID
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => {
             setUserId(session?.user?.id ?? null);
@@ -60,16 +59,12 @@ export function useIbadah() {
             return;
         }
         setLoading(true);
-        console.log('[useIbadah] fetchLogs with userId:', userId);
         const { data, error } = await supabase
             .from('ramadan_ibadah_logs')
             .select('*')
             .eq('user_id', userId);
 
-        if (error) {
-            console.error('[useIbadah] fetchLogs error:', error);
-        } else if (data) {
-            console.log('[useIbadah] fetchLogs returned', data.length, 'rows');
+        if (!error && data) {
             const logsMap: Record<string, IbadahLog> = {};
             data.forEach((row: any) => {
                 logsMap[row.hijri_date] = {
@@ -88,10 +83,8 @@ export function useIbadah() {
 
     const saveLog = async (day: string, updates: Partial<IbadahLog>) => {
         if (!userId) {
-            console.error('[useIbadah] Cannot save: user not authenticated');
             return { message: 'Not authenticated' };
         }
-        console.log('[useIbadah] saveLog day:', day, 'userId:', userId);
         const existing = logs[day];
         const merged = {
             ...(existing || {}),
@@ -106,9 +99,7 @@ export function useIbadah() {
             .from('ramadan_ibadah_logs')
             .upsert(payload, { onConflict: 'user_id, hijri_date' });
 
-        if (error) {
-            console.error('[useIbadah] saveLog error:', error);
-        } else {
+        if (!error) {
             setLogs(prev => ({
                 ...prev,
                 [day]: merged as IbadahLog,
