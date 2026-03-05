@@ -1,159 +1,100 @@
 
 
-# Login System for Ibadah Chart Personalization
+# Full Application Review -- Play Store Readiness
 
-## Overview
+## Critical Security Issues (Must Fix)
 
-Add a lightweight authentication system so each user has a unique account. Ibadah data will be linked to the authenticated user's ID instead of the volatile device ID. The login/signup flow will be accessible from the Ibadah Chart page (redirecting unauthenticated users) and optionally from Settings.
+### 1. Admin Panel Uses Client-Side Password Hash (CRITICAL)
+The `/admin` route authenticates by comparing a SHA-256 hash against `VITE_ADMIN_PASSWORD_HASH` stored in an environment variable exposed to the client bundle. **Anyone can extract the hash from the built JS bundle and brute-force it offline**, or simply bypass the check by modifying client-side code. All admin operations (prayer times, hijri date, hadiths) use the same open RLS policies, meaning **anyone can call the database directly without even visiting the admin page**.
 
-## Database Changes
+**Fix:** Create an admin role system using the `user_roles` table pattern. Protect admin-only tables with RLS policies that check `has_role(auth.uid(), 'admin')`. Remove the client-side password hash.
 
-### 1. Create `profiles` table
+### 2. Overly Permissive RLS Policies (CRITICAL -- 17 findings)
+The security scan found that these tables allow **anyone** (including unauthenticated users) to INSERT, UPDATE, and DELETE:
+- `prayer_times` -- attackers can corrupt prayer schedules
+- `prayer_time_changes` -- attackers can sabotage schedule changes
+- `hijri_date` -- attackers can manipulate the Islamic calendar
+- `hadiths` -- attackers can post fake/offensive religious content
+- `daily_prayer_times` -- attackers can corrupt daily schedules
+- `users_push_tokens` -- FCM tokens and device IDs exposed
+- `notification_sent_log` -- prayer habits and tokens publicly readable
+- `system_logs` -- internal operations visible to anyone
+- `hijri_admin_log` -- admin actions publicly visible
 
-```sql
-CREATE TABLE public.profiles (
-  id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  full_name text NOT NULL,
-  masjid_name text,
-  city text,
-  province text,
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
-);
+**Fix:** Restrict write operations on admin-managed tables to users with an admin role. Keep SELECT as public for prayer_times, daily_prayer_times, hijri_date, hadiths. Restrict system_logs, notification_sent_log, and users_push_tokens to service_role only (or authenticated admin).
 
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+### 3. Leaked Password Protection Disabled
+The authentication system does not check passwords against known breach databases.
 
-CREATE POLICY "Users can read own profile" ON public.profiles
-  FOR SELECT TO authenticated USING (auth.uid() = id);
+**Fix:** Enable leaked password protection in auth settings.
 
-CREATE POLICY "Users can update own profile" ON public.profiles
-  FOR UPDATE TO authenticated USING (auth.uid() = id);
+## Bugs and Functional Issues
 
-CREATE POLICY "Users can insert own profile" ON public.profiles
-  FOR INSERT TO authenticated WITH CHECK (auth.uid() = id);
+### 4. No Password Reset Flow
+There is no forgot password or reset password page. Users who forget their password have no recovery path. This is a Play Store requirement for apps with accounts.
 
-CREATE TRIGGER set_profiles_updated_at
-  BEFORE UPDATE ON public.profiles
-  FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
-```
+**Fix:** Add a "Forgot Password" link on the Auth page and a `/reset-password` route.
 
-### 2. Auto-create profile on signup (trigger)
+### 5. No Email Verification Handling
+After registration, users are told to check email, but there's no handling for the email confirmation redirect. The `emailRedirectTo` points to `window.location.origin` (root), which just shows the main prayer page with no feedback.
 
-```sql
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
-SET search_path = public AS $$
-BEGIN
-  INSERT INTO public.profiles (id, full_name)
-  VALUES (NEW.id, COALESCE(NEW.raw_user_meta_data->>'full_name', ''));
-  RETURN NEW;
-END;
-$$;
+**Fix:** Handle the auth callback on the root route or add a dedicated `/auth/callback` route.
 
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
-```
+### 6. AuthGuard Does Not Listen for Auth Changes
+`AuthGuard.tsx` only checks `getSession()` once on mount. If the session expires or the user logs out in another tab, the guard won't react.
 
-### 3. Update `ramadan_ibadah_logs` RLS policies
+**Fix:** Add `onAuthStateChange` listener in AuthGuard.
 
-Update existing RLS policies so authenticated users can only access their own rows:
+### 7. Hardcoded "Ramadan 1447 AH" in RamadanChart
+Line 66 of `RamadanChart.tsx` has `Ramadan 1447 AH` hardcoded. This will be wrong next year.
 
-```sql
--- Drop old open policies
-DROP POLICY "Anyone can insert their own logs" ON public.ramadan_ibadah_logs;
-DROP POLICY "Anyone can select their own logs" ON public.ramadan_ibadah_logs;
-DROP POLICY "Anyone can update their own logs" ON public.ramadan_ibadah_logs;
+**Fix:** Derive from the hijri date data.
 
--- New policies using auth.uid()
-CREATE POLICY "Authenticated users insert own logs" ON public.ramadan_ibadah_logs
-  FOR INSERT TO authenticated WITH CHECK (user_id = auth.uid()::text);
+## Play Store Compliance Issues
 
-CREATE POLICY "Authenticated users select own logs" ON public.ramadan_ibadah_logs
-  FOR SELECT TO authenticated USING (user_id = auth.uid()::text);
+### 8. Missing Privacy Policy
+Google Play requires a privacy policy URL for apps that collect personal data (email, name, location, device tokens, prayer habits). No privacy policy page exists in the app.
 
-CREATE POLICY "Authenticated users update own logs" ON public.ramadan_ibadah_logs
-  FOR UPDATE TO authenticated USING (user_id = auth.uid()::text);
-```
+**Fix:** Add a privacy policy page and link it from the Auth registration page and Settings.
 
-## New Files
+### 9. Missing Account Deletion Feature
+Google Play requires apps with account creation to provide an in-app account deletion option. There is no way for users to delete their account.
 
-### 1. `src/hooks/useAuth.ts`
+**Fix:** Add a "Delete Account" button in Settings that calls `supabase.auth.admin.deleteUser()` via an edge function and clears all user data.
 
-Auth hook wrapping Supabase auth:
-- `user`, `session`, `loading` state
-- `signUp(email, password, metadata)` -- metadata includes full_name, masjid_name, city, province
-- `signIn(email, password)`
-- `signOut()`
-- `onAuthStateChange` listener set up before `getSession()`
+### 10. No Data Export / Portability
+While not strictly required, providing data export improves Play Store review and GDPR compliance.
 
-### 2. `src/pages/Auth.tsx`
+## Performance and Quality
 
-A single page with Login/Register tabs:
-- **Login tab**: Email + Password fields
-- **Register tab**: Email, Password, Full Name, Masjid Name, City, Province fields
-- After successful login/signup, redirect to `/ramadan-chart`
-- Clean design matching existing theme (cards, primary colors)
+### 11. Console Logs in Production
+Multiple `console.log` and `console.warn` statements throughout the codebase (device.ts, useIbadah.ts, useNotifications.ts). These should be removed or gated behind a debug flag for production.
 
-### 3. `src/components/AuthGuard.tsx`
+### 12. Firebase Config Exposed in Client Bundle
+Firebase API keys in `.env` with `VITE_` prefix are bundled into the client. Firebase API keys are designed to be public, but the VAPID key and other config should be reviewed. This is acceptable but worth noting.
 
-A wrapper component that checks auth state and redirects to `/auth` if not logged in. Used to protect the Ramadan Chart route.
+## Recommended Implementation Order
 
-## Modified Files
+1. **Create admin role system** -- user_roles table, has_role function, assign admin role
+2. **Lock down all RLS policies** -- restrict write access on admin tables, restrict sensitive logs
+3. **Remove client-side admin password** -- replace with role-based auth check
+4. **Add password reset flow** -- forgot password + /reset-password page
+5. **Add account deletion** -- edge function + UI in Settings
+6. **Add privacy policy page** -- static page with link from Auth and Settings
+7. **Enable leaked password protection** -- auth config change
+8. **Fix AuthGuard** -- add onAuthStateChange listener
+9. **Fix hardcoded Ramadan year** -- derive dynamically
+10. **Remove console.log statements** -- clean up for production
 
-### 1. `src/hooks/useIbadah.ts`
-
-- Replace `deviceId` with `user.id` from auth context
-- If user is not authenticated, return empty state (no anonymous tracking)
-- `saveLog` uses `auth.uid()` as `user_id`
-
-### 2. `src/App.tsx`
-
-- Add `/auth` route pointing to `Auth.tsx`
-- Wrap `/ramadan-chart` route with `AuthGuard`
-- Provide auth context at app level
-
-### 3. `src/pages/RamadanChart.tsx`
-
-- Display user's name and masjid from profile in the header
-- Add logout button
-
-### 4. `src/pages/Settings.tsx`
-
-- Add a "Login / Account" card section showing login status
-- If logged in: show name, masjid, logout button
-- If not logged in: link to `/auth`
-
-## Auth Flow
-
-```text
-User opens /ramadan-chart
-  |
-  +--> AuthGuard checks session
-  |      |
-  |      +--> No session → redirect to /auth
-  |      +--> Has session → render chart
-  |
-  /auth page
-  |
-  +--> Register: email, password, full_name, masjid_name, city, province
-  |      +--> signUp() with metadata
-  |      +--> Trigger creates profile row
-  |      +--> Email verification required (no auto-confirm)
-  |
-  +--> Login: email, password
-         +--> signIn()
-         +--> Redirect to /ramadan-chart
-```
-
-## Data Migration Note
-
-Existing device-based data in `ramadan_ibadah_logs` will remain but won't be accessible to new authenticated users (different `user_id`). This is acceptable since the old device-ID approach was unreliable anyway. If needed, a manual migration script could reassign old rows to new user IDs, but this is outside the current scope.
-
-## Security
-
-- Email verification required before login (no auto-confirm)
-- RLS policies restrict data to authenticated user's own rows only
-- Profile data protected by RLS
-- No client-side role checks or localStorage-based auth
+### Files to Create/Modify
+- New migration: user_roles table, has_role function, updated RLS policies for all tables
+- `src/pages/Admin.tsx` -- replace password auth with role check
+- `src/pages/Auth.tsx` -- add forgot password link
+- `src/pages/ResetPassword.tsx` -- new page
+- `src/pages/PrivacyPolicy.tsx` -- new page
+- `src/pages/Settings.tsx` -- add delete account, privacy policy link
+- `src/components/AuthGuard.tsx` -- add auth state listener
+- `src/pages/RamadanChart.tsx` -- fix hardcoded year
+- `src/App.tsx` -- add new routes
+- New edge function: `delete-user-account`
 
