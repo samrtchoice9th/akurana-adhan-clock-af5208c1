@@ -8,70 +8,68 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowLeft, Lock, Upload, Moon, AlertTriangle, Clock, CheckCircle, BookOpen } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { ArrowLeft, Lock, Upload, Moon, AlertTriangle, Clock, CheckCircle, BookOpen, ShieldAlert } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { CsvChangeRow } from '@/lib/csvParser';
 import { parseExcel } from '@/lib/excelParser';
 import { useHijriDate, formatHijriDate } from '@/hooks/useHijriDate';
 import { Label } from '@/components/ui/label';
-
-const ADMIN_PASSWORD_HASH = import.meta.env.VITE_ADMIN_PASSWORD_HASH;
-
-async function sha256Hex(value: string): Promise<string> {
-  const bytes = new TextEncoder().encode(value);
-  const hash = await crypto.subtle.digest('SHA-256', bytes);
-  return Array.from(new Uint8Array(hash)).map((b) => b.toString(16).padStart(2, '0')).join('');
-}
+import { useAuth } from '@/hooks/useAuth';
 
 export default function Admin() {
-  const [authenticated, setAuthenticated] = useState(false);
-  const [password, setPassword] = useState('');
-  const [authenticating, setAuthenticating] = useState(false);
+  const { user, loading: authLoading } = useAuth();
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const [checking, setChecking] = useState(true);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
-  const authenticate = useCallback(async () => {
-    if (!ADMIN_PASSWORD_HASH) {
-      toast({ title: 'Admin password hash is not configured', variant: 'destructive' });
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+      navigate('/auth', { replace: true });
       return;
     }
 
-    setAuthenticating(true);
-    try {
-      const passwordHash = await sha256Hex(password);
-      if (passwordHash === ADMIN_PASSWORD_HASH.toLowerCase()) {
-        setAuthenticated(true);
-        return;
-      }
-      toast({ title: 'Wrong password', variant: 'destructive' });
-    } finally {
-      setAuthenticating(false);
-    }
-  }, [password, toast]);
+    // Check admin role
+    supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .eq('role', 'admin')
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (error) {
+          toast({ title: 'Error checking admin access', description: error.message, variant: 'destructive' });
+          setIsAdmin(false);
+        } else {
+          setIsAdmin(!!data);
+        }
+        setChecking(false);
+      });
+  }, [user, authLoading, navigate, toast]);
 
-  if (!authenticated) {
+  if (authLoading || checking) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p className="text-muted-foreground">Checking access...</p>
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center px-4">
         <Card className="w-full max-w-sm bg-card border-border">
           <CardHeader className="text-center">
-            <Lock className="h-10 w-10 text-primary mx-auto mb-2" />
-            <CardTitle className="text-foreground">Admin Access</CardTitle>
+            <ShieldAlert className="h-10 w-10 text-destructive mx-auto mb-2" />
+            <CardTitle className="text-foreground">Access Denied</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <Input
-              type="password"
-              placeholder="Enter password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter') void authenticate();
-              }}
-              className="bg-muted border-border text-foreground"
-            />
-            <Button className="w-full" onClick={() => void authenticate()} disabled={authenticating}>
-              {authenticating ? 'Checking...' : 'Enter'}
-            </Button>
-            <Link to="/" className="block text-center text-sm text-muted-foreground hover:text-foreground transition-colors">
+          <CardContent className="space-y-4 text-center">
+            <p className="text-sm text-muted-foreground">
+              You do not have admin privileges. Contact the system administrator.
+            </p>
+            <Link to="/" className="block text-sm text-primary hover:underline">
               ← Back to Prayer Times
             </Link>
           </CardContent>
@@ -186,8 +184,8 @@ function CsvUploadTab() {
         const err = await res.text();
         toast({ title: 'Sync warning', description: err, variant: 'destructive' });
       }
-    } catch (e) {
-      console.error('Sync failed:', e);
+    } catch {
+      // Sync failed silently
     }
   };
 
@@ -227,7 +225,6 @@ function CsvUploadTab() {
     if (fileRef.current) fileRef.current.value = '';
     setSaving(false);
 
-    // Auto-sync daily prayer times for notifications
     await syncDailyPrayerTimes();
   };
 
@@ -326,7 +323,6 @@ function HijriControlTab() {
 
   useEffect(() => { void refreshLogs(); }, []);
 
-  // Pre-fill manual fields whenever hijri loads
   useEffect(() => {
     if (hijri) {
       setManualYear(String(hijri.hijri_year));
@@ -361,7 +357,6 @@ function HijriControlTab() {
 
   return (
     <div className="space-y-4 mt-4">
-      {/* Current date display */}
       <Card className="bg-card border-border">
         <CardContent className="p-4 text-center">
           <p className="text-xs text-muted-foreground mb-1">Current Hijri Date</p>
@@ -370,7 +365,6 @@ function HijriControlTab() {
         </CardContent>
       </Card>
 
-      {/* Manual date override — always visible */}
       <Card className="bg-card border-border">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm text-primary">✏️ Manual Date Override</CardTitle>
@@ -411,7 +405,6 @@ function HijriControlTab() {
         </CardContent>
       </Card>
 
-      {/* Moon sighting — always visible */}
       <Card className="bg-card border-border">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm text-primary flex items-center gap-2">
@@ -448,7 +441,6 @@ function HijriControlTab() {
         </CardContent>
       </Card>
 
-      {/* Admin action log */}
       {logs.length > 0 && (
         <Card className="bg-card border-border">
           <CardHeader className="pb-2">
@@ -527,7 +519,6 @@ function HadithTab() {
 
   const handleSetActive = async (id: string) => {
     setActionBusy(id);
-    // Deactivate all
     const { error: deactivateErr } = await supabase
       .from('hadiths')
       .update({ is_active: false })
@@ -539,7 +530,6 @@ function HadithTab() {
       return;
     }
 
-    // Activate selected
     const { error: activateErr } = await supabase
       .from('hadiths')
       .update({ is_active: true })
@@ -607,7 +597,6 @@ function HadithTab() {
 
   return (
     <div className="space-y-4 mt-4">
-      {/* All Hadiths List */}
       <Card className="bg-card border-border">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm text-primary flex items-center gap-2">
@@ -665,7 +654,6 @@ function HadithTab() {
         </CardContent>
       </Card>
 
-      {/* Add New Hadith */}
       <Card className="bg-card border-border">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm text-primary">Add New Hadith</CardTitle>
@@ -712,4 +700,3 @@ function HadithTab() {
     </div>
   );
 }
-

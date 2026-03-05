@@ -7,7 +7,6 @@ export type ReminderType = '10min' | '5min' | 'adhan' | 'iqamah';
 
 import { getOrCreateDeviceId } from '@/lib/device';
 
-const STORAGE_DEVICE_ID = 'akurana-device-id';
 const STORAGE_PROMPT_SHOWN = 'akurana-push-prompt-shown';
 
 export interface NotificationPrefs {
@@ -68,13 +67,11 @@ export function useNotifications(location: string, autoPrompt = false) {
 
       const deviceId = getOrCreateDeviceId();
       if (!nextEnabled) {
-        console.log('[useNotifications] Disabling push tokens for device:', deviceId);
         await supabase.from('users_push_tokens').delete().eq('device_id', deviceId);
         return;
       }
 
       const types = getReminderTypes(nextPrefs);
-      console.log('[useNotifications] Syncing tokens with Supabase:', { deviceId, types });
       await supabase.from('users_push_tokens').delete().eq('device_id', deviceId);
       if (types.length === 0) return;
 
@@ -87,10 +84,7 @@ export function useNotifications(location: string, autoPrompt = false) {
         platform: isIOS() ? 'ios' : 'web',
       }));
 
-      console.log('[useNotifications] Inserting rows:', rows.length);
-      const { error } = await supabase.from('users_push_tokens').insert(rows);
-      if (error) console.error('[useNotifications] Sync error:', error);
-      else console.log('[useNotifications] Sync successful');
+      await supabase.from('users_push_tokens').insert(rows);
     } finally {
       isSyncing.current = false;
     }
@@ -105,13 +99,11 @@ export function useNotifications(location: string, autoPrompt = false) {
       if (perm !== 'granted') return;
 
       const swReg = await navigator.serviceWorker.register(getServiceWorkerUrl());
-      console.log('[useNotifications] SW Registered');
       const messaging = await getFirebaseMessaging();
       if (!messaging) return;
 
       const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
       const fcmToken = await getToken(messaging, { vapidKey, serviceWorkerRegistration: swReg });
-      console.log('[useNotifications] FCM Token:', fcmToken ? 'Success' : 'Failed');
       if (!fcmToken) return;
       setToken(fcmToken);
       setEnabled(true);
@@ -129,24 +121,21 @@ export function useNotifications(location: string, autoPrompt = false) {
       if (Notification.permission !== 'granted') return;
 
       try {
-        // Try to get FCM token, but don't bail if it fails
         let fcmToken: string | null = null;
         try {
           const swReg = await navigator.serviceWorker.register(getServiceWorkerUrl());
-          console.log('[useNotifications] Auto-load SW Registered');
           const messaging = await getFirebaseMessaging();
           if (messaging) {
             const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
             fcmToken = await getToken(messaging, { vapidKey, serviceWorkerRegistration: swReg });
           }
-        } catch (fcmErr) {
-          console.warn('[useNotifications] FCM token retrieval failed during load, will restore from DB:', fcmErr);
+        } catch {
+          // FCM token retrieval failed during load
         }
 
         if (cancelled) return;
         if (fcmToken) setToken(fcmToken);
 
-        // Always check DB for existing preferences regardless of FCM token status
         const deviceId = getOrCreateDeviceId();
         const { data, error } = await supabase
           .from('users_push_tokens')
@@ -154,10 +143,7 @@ export function useNotifications(location: string, autoPrompt = false) {
           .eq('device_id', deviceId)
           .eq('notifications_enabled', true);
 
-        if (error || cancelled) {
-          if (error) console.error('[useNotifications] DB query error during load:', error);
-          return;
-        }
+        if (error || cancelled) return;
 
         if (!data || data.length === 0) {
           setEnabled(false);
@@ -174,8 +160,8 @@ export function useNotifications(location: string, autoPrompt = false) {
 
         setEnabled(true);
         setPrefs(nextPrefs);
-      } catch (err) {
-        console.error('[useNotifications] loadExistingState failed:', err);
+      } catch {
+        // loadExistingState failed
       } finally {
         if (!cancelled) hasLoadedRef.current = true;
       }
@@ -228,7 +214,7 @@ export function useNotifications(location: string, autoPrompt = false) {
   }, []);
 
   useEffect(() => {
-    if (!hasLoadedRef.current) return; // Skip sync during initial load
+    if (!hasLoadedRef.current) return;
     if (!enabled || !token) return;
     void syncToken(true, prefs);
   }, [enabled, token, location, prefs, syncToken]);

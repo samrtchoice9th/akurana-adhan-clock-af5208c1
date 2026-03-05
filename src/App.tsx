@@ -9,6 +9,8 @@ import Admin from "./pages/Admin";
 import Settings from "./pages/Settings";
 import RamadanChart from "./pages/RamadanChart";
 import Auth from "./pages/Auth";
+import ResetPassword from "./pages/ResetPassword";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
 import NotFound from "./pages/NotFound";
 import { AuthGuard } from "./components/AuthGuard";
 
@@ -26,6 +28,8 @@ const App = () => (
             <Route path="/admin" element={<Admin />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             <Route path="/ramadan-chart" element={<AuthGuard><RamadanChart /></AuthGuard>} />
             <Route path="*" element={<NotFound />} />
           </Routes>

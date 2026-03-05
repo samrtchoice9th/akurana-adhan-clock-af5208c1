@@ -9,11 +9,15 @@ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Trophy, Calendar as CalendarIcon, ArrowLeft, Target, Heart, BookOpen, AlertCircle, LogOut } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { useHijriDate } from '@/hooks/useHijriDate';
 
 export default function RamadanChart() {
     const { logs, loading, saveLog, calculateScore, getWeeklyReport } = useIbadah();
     const { profile, signOut } = useAuth();
+    const { hijri } = useHijriDate();
     const navigate = useNavigate();
+
+    const ramadanLabel = hijri ? `Ramadan ${hijri.hijri_year} AH` : 'Ramadan';
     const [selectedDay, setSelectedDay] = useState<number | null>(null);
 
     const handleLogout = async () => {
@@ -62,7 +66,7 @@ export default function RamadanChart() {
                 </div>
                 <div className="flex items-center gap-2">
                     <Badge variant="outline" className="px-3 py-1 text-sm bg-primary/5 border-primary/20 text-primary">
-                        Ramadan 1447 AH
+                        {ramadanLabel}
                     </Badge>
                     <button onClick={handleLogout} className="p-2 hover:bg-muted rounded-full transition-colors text-muted-foreground hover:text-foreground" title="Logout">
                         <LogOut className="h-4 w-4" />

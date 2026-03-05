@@ -1,4 +1,5 @@
-import { ArrowLeft, Palette, Layout, Check, Bell, Gem, Coffee, Trees, Factory, Grape, Flame, MapPin, User, LogOut } from 'lucide-react';
+import { useState } from 'react';
+import { ArrowLeft, Palette, Layout, Check, Bell, Gem, Coffee, Trees, Factory, Grape, Flame, MapPin, User, LogOut, Trash2, Shield } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
@@ -7,7 +8,20 @@ import { useTheme, ThemeColor, DesignStyle } from '@/hooks/useTheme.tsx';
 import { useNotifications } from '@/hooks/useNotifications';
 import { useLocation, LocationOption } from '@/hooks/useLocation';
 import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 
 const COLORS: { value: ThemeColor; label: string; desc: string; preview: string; icon: typeof Gem }[] = [
   { value: 'black-gold', label: 'Black Gold Premium', desc: 'Luxury dark with gold accents', preview: 'bg-[hsl(43,75%,46%)]', icon: Gem },
@@ -36,10 +50,39 @@ export default function Settings() {
   const { enabled, permission, toggle, prefs, setPreference, busy, iosNeedsHomescreen } = useNotifications(location);
   const { user, profile, signOut } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
+  const [deleting, setDeleting] = useState(false);
 
   const handleLogout = async () => {
     await signOut();
     navigate('/auth', { replace: true });
+  };
+
+  const handleDeleteAccount = async () => {
+    setDeleting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast({ title: 'Not authenticated', variant: 'destructive' });
+        return;
+      }
+
+      const res = await supabase.functions.invoke('delete-user-account', {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+
+      if (res.error) {
+        toast({ title: 'Failed to delete account', description: res.error.message, variant: 'destructive' });
+      } else {
+        await supabase.auth.signOut();
+        toast({ title: 'Account deleted successfully' });
+        navigate('/', { replace: true });
+      }
+    } catch {
+      toast({ title: 'Failed to delete account', variant: 'destructive' });
+    } finally {
+      setDeleting(false);
+    }
   };
 
   return (
@@ -91,6 +134,7 @@ export default function Settings() {
         </Card>
       )}
 
+      {/* Location */}
       <Card className="w-full bg-card border-border mb-4">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm text-primary flex items-center gap-2">
@@ -121,6 +165,7 @@ export default function Settings() {
         </CardContent>
       </Card>
 
+      {/* Color Theme */}
       <Card className="w-full bg-card border-border mb-4">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm text-primary flex items-center gap-2">
@@ -155,6 +200,7 @@ export default function Settings() {
         </CardContent>
       </Card>
 
+      {/* Design Style */}
       <Card className="w-full bg-card border-border mb-4">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm text-primary flex items-center gap-2">
@@ -183,7 +229,8 @@ export default function Settings() {
         </CardContent>
       </Card>
 
-      <Card className="w-full bg-card border-border">
+      {/* Notifications */}
+      <Card className="w-full bg-card border-border mb-4">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm text-primary flex items-center gap-2">
             <Bell className="h-4 w-4" /> Prayer Reminder Settings
@@ -220,6 +267,46 @@ export default function Settings() {
           )}
           {iosNeedsHomescreen && (
             <p className="text-xs text-muted-foreground">For iPhone users, please add app to Home Screen to receive notifications.</p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Privacy & Account Management */}
+      <Card className="w-full bg-card border-border mb-4">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm text-primary flex items-center gap-2">
+            <Shield className="h-4 w-4" /> Privacy & Data
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-4 pt-0 space-y-3">
+          <Link to="/privacy-policy" className="block text-sm text-primary hover:underline">
+            View Privacy Policy
+          </Link>
+
+          {user && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm" className="w-full" disabled={deleting}>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  {deleting ? 'Deleting...' : 'Delete My Account'}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete your account?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This action cannot be undone. This will permanently delete your account,
+                    profile, and all your Ibadah tracking data.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDeleteAccount} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                    Delete Account
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           )}
         </CardContent>
       </Card>
