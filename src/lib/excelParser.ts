@@ -6,7 +6,7 @@ const MONTHS = [
   'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER',
 ];
 
-const YEAR = 2026;
+const CURRENT_YEAR = new Date().getFullYear();
 
 export interface ExcelParseResult {
   success: boolean;
@@ -109,7 +109,7 @@ export function parseExcel(data: ArrayBuffer): ExcelParseResult {
 
       // Build effective_from date
       const monthNum = currentMonth + 1;
-      const dateStr = `${YEAR}-${monthNum.toString().padStart(2, '0')}-${startDay.toString().padStart(2, '0')}`;
+      const dateStr = `${CURRENT_YEAR}-${monthNum.toString().padStart(2, '0')}-${startDay.toString().padStart(2, '0')}`;
 
       // Validate the date is real
       const dateObj = new Date(dateStr + 'T00:00:00');
@@ -144,9 +144,10 @@ export function parseExcel(data: ArrayBuffer): ExcelParseResult {
     // Sort by date
     rows.sort((a, b) => a.effective_from.localeCompare(b.effective_from));
 
-    // Verify first row starts with January 1
-    if (rows[0].effective_from !== '2026-01-01') {
-      return { success: false, rows: [], error: `First record must be 2026-01-01, got "${rows[0].effective_from}".` };
+    // Verify first row starts with January 1st of the current year
+    const expectedFirst = `${CURRENT_YEAR}-01-01`;
+    if (rows[0].effective_from !== expectedFirst) {
+      return { success: false, rows: [], error: `First record must be ${expectedFirst}, got "${rows[0].effective_from}".` };
     }
 
     return { success: true, rows, error: null };

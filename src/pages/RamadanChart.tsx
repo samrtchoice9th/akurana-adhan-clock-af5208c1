@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useIbadah, IbadahLog } from '@/hooks/useIbadah';
 import { IbadahDayDetail } from '../components/IbadahDayDetail';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,6 +19,7 @@ export default function RamadanChart() {
 
     const ramadanLabel = hijri ? `Ramadan ${hijri.hijri_year} AH` : 'Ramadan';
     const [selectedDay, setSelectedDay] = useState<number | null>(null);
+    const weeklyReport = useMemo(() => getWeeklyReport(), [getWeeklyReport]);
 
     const handleLogout = async () => {
         await signOut();
@@ -30,7 +31,6 @@ export default function RamadanChart() {
     }
 
     const days = Array.from({ length: 30 }, (_, i) => i + 1);
-    const weeklyReport = getWeeklyReport();
 
     const getDayStatusColor = (day: number) => {
         const log = logs[String(day)];

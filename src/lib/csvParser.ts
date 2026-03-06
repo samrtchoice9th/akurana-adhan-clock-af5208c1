@@ -71,9 +71,10 @@ export function parseCsv(text: string): CsvParseResult {
   // Sort by date ascending
   rows.sort((a, b) => a.effective_from.localeCompare(b.effective_from));
 
-  // First row must be 2026-01-01
-  if (rows[0].effective_from !== '2026-01-01') {
-    return { success: false, rows: [], error: `First row must have effective_from = 2026-01-01. Got "${rows[0].effective_from}".` };
+  // First row must start on January 1st of its year
+  const firstDate = rows[0].effective_from;
+  if (!firstDate.endsWith('-01-01')) {
+    return { success: false, rows: [], error: `First row must start on January 1st. Got "${firstDate}".` };
   }
 
   return { success: true, rows, error: null };
