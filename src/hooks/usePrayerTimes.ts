@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
-import { addMinutesToTime, IQAMATH_OFFSETS } from '@/lib/iqamathOffset';
+import { addMinutesToTime, IQAMATH_OFFSETS, RAMADAN_ISHA_IQAMAH, RAMADAN_TARAWEEH_TIME } from '@/lib/iqamathOffset';
+import { parseTimeToMinutes } from '@/lib/timeUtils';
 
 export interface PrayerEntry {
   name: string;
@@ -23,21 +24,6 @@ interface MergedTimes {
 
 const TIME_FIELDS = ['subah_adhan', 'sunrise', 'luhar_adhan', 'asr_adhan', 'magrib_adhan', 'isha_adhan'] as const;
 
-function parseTimeToMinutes(timeStr: string | null): number | null {
-  if (!timeStr) return null;
-  const cleaned = timeStr.trim().toUpperCase();
-  const match = cleaned.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/);
-  if (!match) return null;
-
-  let hours = parseInt(match[1], 10);
-  const minutes = parseInt(match[2], 10);
-  const period = match[3];
-
-  if (period === 'PM' && hours !== 12) hours += 12;
-  if (period === 'AM' && hours === 12) hours = 0;
-
-  return hours * 60 + minutes;
-}
 
 function getEmptyPrayerList(): PrayerEntry[] {
   return [
@@ -72,8 +58,8 @@ export function getPrayerList(merged: MergedTimes | null, offsetMinutes = 0, isR
       { name: 'Luhar', adhan: luhar, iqamath: addMinutesToTime(luhar, IQAMATH_OFFSETS.Luhar), hasIqamath: true },
       { name: 'Asr', adhan: asr, iqamath: addMinutesToTime(asr, IQAMATH_OFFSETS.Asr), hasIqamath: true },
       { name: 'Magrib', adhan: magrib, iqamath: addMinutesToTime(magrib, 20), hasIqamath: true },
-      { name: 'Isha', adhan: isha, iqamath: '8:15 PM', hasIqamath: true },
-      { name: 'Taraweeh', adhan: '8:30 PM', iqamath: null, hasIqamath: false },
+      { name: 'Isha', adhan: isha, iqamath: RAMADAN_ISHA_IQAMAH, hasIqamath: true },
+      { name: 'Taraweeh', adhan: RAMADAN_TARAWEEH_TIME, iqamath: null, hasIqamath: false },
     ];
   }
 

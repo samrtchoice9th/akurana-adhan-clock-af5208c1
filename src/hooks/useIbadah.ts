@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 export type IbadahStatus = 'completed' | 'delayed' | 'missed' | 'none';
@@ -81,9 +81,9 @@ export function useIbadah() {
         fetchLogs();
     }, [fetchLogs]);
 
-    const saveLog = async (day: string, updates: Partial<IbadahLog>) => {
+    const saveLog = async (day: string, updates: Partial<IbadahLog>): Promise<{ error: string | null }> => {
         if (!userId) {
-            return { message: 'Not authenticated' };
+            return { error: 'Not authenticated' };
         }
         const existing = logs[day];
         const merged = {
@@ -93,11 +93,11 @@ export function useIbadah() {
             hijri_date: day,
         };
 
-        const { id, created_at, updated_at, masjid_id, ...payload } = merged as any;
+        const { id, created_at, updated_at, masjid_id, ...payload } = merged as Record<string, unknown>;
 
         const { error } = await supabase
             .from('ramadan_ibadah_logs')
-            .upsert(payload, { onConflict: 'user_id, hijri_date' });
+            .upsert(payload as any, { onConflict: 'user_id, hijri_date' });
 
         if (!error) {
             setLogs(prev => ({
@@ -105,18 +105,18 @@ export function useIbadah() {
                 [day]: merged as IbadahLog,
             }));
         }
-        return error;
+        return { error: error?.message ?? null };
     };
 
-    const calculateScore = (dayLog: IbadahLog | undefined) => {
+    const calculateScore = useCallback((dayLog: IbadahLog | undefined): number => {
         if (!dayLog) return 0;
         let score = 0;
         let maxScore = 50 + 5 + 5 + 5;
 
-        const prayers = ['fajr_status', 'dhuhr_status', 'asr_status', 'maghrib_status', 'isha_status'];
-        prayers.forEach(p => {
-            if ((dayLog as any)[p] === 'completed') score += 10;
-            else if ((dayLog as any)[p] === 'delayed') score += 5;
+        const prayerKeys: (keyof IbadahLog)[] = ['fajr_status', 'dhuhr_status', 'asr_status', 'maghrib_status', 'isha_status'];
+        prayerKeys.forEach(p => {
+            if (dayLog[p] === 'completed') score += 10;
+            else if (dayLog[p] === 'delayed') score += 5;
         });
 
         if (dayLog.taraweeh_status === 'completed') score += 5;
@@ -128,9 +128,9 @@ export function useIbadah() {
         maxScore += 10;
 
         return Math.round((score / maxScore) * 100);
-    };
+    }, []);
 
-    const getWeeklyReport = () => {
+    const getWeeklyReport = useCallback(() => {
         const logArray = Object.values(logs).sort((a, b) => parseInt(a.hijri_date) - parseInt(b.hijri_date));
         if (logArray.length < 3) return null;
 
@@ -140,11 +140,13 @@ export function useIbadah() {
         let completedPrayers = 0;
         let totalQuran = 0;
 
+        const prayerNames = ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha'] as const;
+
         recent.forEach(log => {
             if (log.fajr_status === 'missed') missedFajr++;
-            ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha'].forEach(p => {
+            prayerNames.forEach(p => {
                 totalPrayers++;
-                if ((log as any)[`${p}_status`] === 'completed') completedPrayers++;
+                if (log[`${p}_status` as keyof IbadahLog] === 'completed') completedPrayers++;
             });
             totalQuran += log.quran_minutes;
         });
@@ -160,7 +162,7 @@ export function useIbadah() {
         }
 
         return { completionRate, avgQuran, missedFajr, suggestion };
-    };
+    }, [logs]);
 
     return {
         logs,

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
@@ -91,7 +92,8 @@ export function IbadahDayDetail({ day, log, onSave, onClose }: IbadahDayDetailPr
                         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Obligatory Prayers</h3>
                         <div className="grid gap-4">
                             {PRAYERS.map((prayer) => {
-                                const status = (localLog as any)[`${prayer.id}_status`] as IbadahStatus;
+                                const statusKey = `${prayer.id}_status` as keyof IbadahLog;
+                                const status = (localLog[statusKey] as IbadahStatus) || 'none';
                                 const reason = localLog.missed_reasons?.[prayer.id];
 
                                 return (
@@ -257,10 +259,3 @@ function StatusButton({ active, onClick, variant, children }: {
     );
 }
 
-function Card({ children, className }: { children: React.ReactNode; className?: string }) {
-    return (
-        <div className={`bg-card border border-border rounded-xl shadow-lg ${className}`}>
-            {children}
-        </div>
-    );
-}

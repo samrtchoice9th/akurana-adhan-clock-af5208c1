@@ -31,7 +31,6 @@ export function HadithBanner() {
       .maybeSingle();
 
     if (error) {
-      console.error('Failed to load active hadith:', error.message);
       setHadith(null);
       return;
     }
