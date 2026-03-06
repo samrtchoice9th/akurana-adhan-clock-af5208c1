@@ -1,16 +1,17 @@
 {
-  "name": "Akurana Prayer App",
-  "short_name": "Prayer Times",
-  "description": "Prayer times for Akurana with Adhan and Iqamath schedules",
-  "start_url": "/",
+  "name": "Akurana Prayer Time",
+  "short_name": "Prayer Time",
+  "description": "Accurate prayer times for Akurana with Adhan, Iqamah countdown, Hijri date control and Ramadan schedule.",
+  "start_url": "/?source=pwa",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#000000",
   "theme_color": "#2eb872",
-  "orientation": "portrait",
-  "categories": ["lifestyle", "education"],
   "lang": "en",
   "dir": "ltr",
-  "scope": "/",
+  "categories": ["lifestyle", "education"],
+  
   "icons": [
     {
       "src": "/icons/icon-192.png",
@@ -25,13 +26,14 @@
       "purpose": "any maskable"
     }
   ],
+
   "screenshots": [
     {
-      "src": "/icons/icon-512.png",
-      "sizes": "512x512",
+      "src": "/screenshots/home-1.png",
+      "sizes": "1080x1920",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "Prayer Times Home Screen"
+      "label": "Prayer Times Screen"
     }
   ]
 }
