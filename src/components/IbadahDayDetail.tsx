@@ -29,17 +29,17 @@ const PRAYERS = [
     { id: 'taraweeh', label: 'Taraweeh' },
 ];
 
-const ADHKAR_ITEMS: { id: string; label: string; arabic: string; periods: ('morning' | 'evening')[] }[] = [
-    { id: 'sayyidul_istighfar', label: 'Sayyidul Istighfar', arabic: 'سيد الاستغفار', periods: ['morning', 'evening'] },
-    { id: 'subhanallah_100', label: 'Subhanallahi wa bihamdihi (100x)', arabic: 'سبحان الله وبحمده', periods: ['morning', 'evening'] },
-    { id: 'la_ilaha_illallah_100', label: 'La ilaha illallah... (100x)', arabic: 'لا إله إلا الله وحده لا شريك له', periods: ['morning', 'evening'] },
-    { id: 'asbahna_amsayna', label: 'Asbahna/Amsayna Dua', arabic: 'اللهم بك أصبحنا / أمسينا', periods: ['morning', 'evening'] },
-    { id: 'asalukal_aafiyah', label: "As'alukal Aafiyah", arabic: 'اللهم إني أسألك العافية', periods: ['morning', 'evening'] },
-    { id: 'aalimal_ghayb', label: 'Aalimal Ghayb', arabic: 'اللهم عالم الغيب والشهادة', periods: ['morning', 'evening'] },
-    { id: 'fitratil_islam', label: 'Ala Fitratil Islam', arabic: 'أصبحنا على فطرة الإسلام', periods: ['morning', 'evening'] },
-    { id: 'adada_khalqihi', label: 'Subhanallahi adada khalqihi (3x)', arabic: 'سبحان الله وبحمده عدد خلقه', periods: ['morning', 'evening'] },
-    { id: 'la_yadurru', label: 'Bismillahilladhi la yadurru (3x)', arabic: 'بسم الله الذي لا يضر مع اسمه شيء', periods: ['morning', 'evening'] },
-    { id: 'audhu_bikalimatillah', label: "A'udhu bikalimatillah", arabic: 'أعوذ بكلمات الله التامات', periods: ['evening'] },
+const ADHKAR_ITEMS: { id: string; label: string; arabic: string; fullArabic: string; periods: ('morning' | 'evening')[] }[] = [
+    { id: 'sayyidul_istighfar', label: 'Sayyidul Istighfar', arabic: 'سيد الاستغفار', fullArabic: 'اللَّهُمَّ أَنْتَ رَبِّي لَا إِلَهَ إِلَّا أَنْتَ، خَلَقْتَنِي وَأَنَا عَبْدُكَ، وَأَنَا عَلَى عَهْدِكَ وَوَعْدِكَ مَا اسْتَطَعْتُ، أَعُوذُ بِكَ مِنْ شَرِّ مَا صَنَعْتُ، أَبُوءُ لَكَ بِنِعْمَتِكَ عَلَيَّ وَأَبُوءُ بِذَنْبِي، فَاغْفِرْ لِي فَإِنَّهُ لَا يَغْفِرُ الذُّنُوبَ إِلَّا أَنْتَ', periods: ['morning', 'evening'] },
+    { id: 'subhanallah_100', label: 'Subhanallahi wa bihamdihi (100x)', arabic: 'سبحان الله وبحمده', fullArabic: 'سُبْحَانَ اللَّهِ وَبِحَمْدِهِ\n\n(١٠٠ مرة)', periods: ['morning', 'evening'] },
+    { id: 'la_ilaha_illallah_100', label: 'La ilaha illallah... (100x)', arabic: 'لا إله إلا الله وحده لا شريك له', fullArabic: 'لَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ، لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ وَهُوَ عَلَى كُلِّ شَيْءٍ قَدِيرٌ\n\n(١٠٠ مرة)', periods: ['morning', 'evening'] },
+    { id: 'asbahna_amsayna', label: 'Asbahna/Amsayna Dua', arabic: 'اللهم بك أصبحنا / أمسينا', fullArabic: 'اللَّهُمَّ بِكَ أَصْبَحْنَا وَبِكَ أَمْسَيْنَا وَبِكَ نَحْيَا وَبِكَ نَمُوتُ وَإِلَيْكَ النُّشُورُ\n\n(المساء: اللَّهُمَّ بِكَ أَمْسَيْنَا وَبِكَ أَصْبَحْنَا وَبِكَ نَحْيَا وَبِكَ نَمُوتُ وَإِلَيْكَ الْمَصِيرُ)', periods: ['morning', 'evening'] },
+    { id: 'asalukal_aafiyah', label: "As'alukal Aafiyah", arabic: 'اللهم إني أسألك العافية', fullArabic: 'اللَّهُمَّ إِنِّي أَسْأَلُكَ الْعَافِيَةَ فِي الدُّنْيَا وَالْآخِرَةِ، اللَّهُمَّ إِنِّي أَسْأَلُكَ الْعَفْوَ وَالْعَافِيَةَ فِي دِينِي وَدُنْيَايَ وَأَهْلِي وَمَالِي، اللَّهُمَّ اسْتُرْ عَوْرَاتِي وَآمِنْ رَوْعَاتِي، اللَّهُمَّ احْفَظْنِي مِنْ بَيْنِ يَدَيَّ وَمِنْ خَلْفِي وَعَنْ يَمِينِي وَعَنْ شِمَالِي وَمِنْ فَوْقِي، وَأَعُوذُ بِعَظَمَتِكَ أَنْ أُغْتَالَ مِنْ تَحْتِي', periods: ['morning', 'evening'] },
+    { id: 'aalimal_ghayb', label: 'Aalimal Ghayb', arabic: 'اللهم عالم الغيب والشهادة', fullArabic: 'اللَّهُمَّ عَالِمَ الْغَيْبِ وَالشَّهَادَةِ، فَاطِرَ السَّمَاوَاتِ وَالْأَرْضِ، رَبَّ كُلِّ شَيْءٍ وَمَلِيكَهُ، أَشْهَدُ أَنْ لَا إِلَهَ إِلَّا أَنْتَ، أَعُوذُ بِكَ مِنْ شَرِّ نَفْسِي وَمِنْ شَرِّ الشَّيْطَانِ وَشِرْكِهِ', periods: ['morning', 'evening'] },
+    { id: 'fitratil_islam', label: 'Ala Fitratil Islam', arabic: 'أصبحنا على فطرة الإسلام', fullArabic: 'أَصْبَحْنَا عَلَى فِطْرَةِ الْإِسْلَامِ وَعَلَى كَلِمَةِ الْإِخْلَاصِ وَعَلَى دِينِ نَبِيِّنَا مُحَمَّدٍ صَلَّى اللَّهُ عَلَيْهِ وَسَلَّمَ وَعَلَى مِلَّةِ أَبِينَا إِبْرَاهِيمَ حَنِيفًا مُسْلِمًا وَمَا كَانَ مِنَ الْمُشْرِكِينَ', periods: ['morning', 'evening'] },
+    { id: 'adada_khalqihi', label: 'Subhanallahi adada khalqihi (3x)', arabic: 'سبحان الله وبحمده عدد خلقه', fullArabic: 'سُبْحَانَ اللَّهِ وَبِحَمْدِهِ عَدَدَ خَلْقِهِ، وَرِضَا نَفْسِهِ، وَزِنَةَ عَرْشِهِ، وَمِدَادَ كَلِمَاتِهِ\n\n(٣ مرات)', periods: ['morning', 'evening'] },
+    { id: 'la_yadurru', label: 'Bismillahilladhi la yadurru (3x)', arabic: 'بسم الله الذي لا يضر مع اسمه شيء', fullArabic: 'بِسْمِ اللَّهِ الَّذِي لَا يَضُرُّ مَعَ اسْمِهِ شَيْءٌ فِي الْأَرْضِ وَلَا فِي السَّمَاءِ وَهُوَ السَّمِيعُ الْعَلِيمُ\n\n(٣ مرات)', periods: ['morning', 'evening'] },
+    { id: 'audhu_bikalimatillah', label: "A'udhu bikalimatillah", arabic: 'أعوذ بكلمات الله التامات', fullArabic: 'أَعُوذُ بِكَلِمَاتِ اللَّهِ التَّامَّاتِ مِنْ شَرِّ مَا خَلَقَ\n\n(٣ مرات)', periods: ['evening'] },
 ];
 
 const DEFAULT_LOG: Partial<IbadahLog> = {
