@@ -69,6 +69,7 @@ export function IbadahDayDetail({ day, monthName, hijriKey, log, onSave, onClose
     const [localLog, setLocalLog] = useState<Partial<IbadahLog>>(log || DEFAULT_LOG);
     const [saving, setSaving] = useState(false);
     const [activeMissedPrayer, setActiveMissedPrayer] = useState<string | null>(null);
+    const [activeAdhkarItem, setActiveAdhkarItem] = useState<typeof ADHKAR_ITEMS[number] | null>(null);
 
     const handleStatusChange = (prayerId: string, status: IbadahStatus) => {
         setLocalLog(prev => ({
