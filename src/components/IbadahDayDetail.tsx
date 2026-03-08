@@ -3,16 +3,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertCircle, CheckCircle2, XCircle, Clock, Info } from 'lucide-react';
+import { Alert } from '@/components/ui/alert';
+import { AlertCircle, CheckCircle2, XCircle, Clock, Info, BookOpen, Sun, Moon } from 'lucide-react';
 import { IbadahLog, IbadahStatus, MISSED_REASONS, CORRECTIVE_SUGGESTIONS } from '@/hooks/useIbadah';
 
 interface IbadahDayDetailProps {
     day: string;
+    monthName: string;
+    hijriKey: string;
     log: IbadahLog | undefined;
     onSave: (updates: Partial<IbadahLog>) => Promise<{ error: string | null }>;
     onClose: () => void;
@@ -27,20 +27,30 @@ const PRAYERS = [
     { id: 'taraweeh', label: 'Taraweeh' },
 ];
 
-export function IbadahDayDetail({ day, log, onSave, onClose }: IbadahDayDetailProps) {
-    const [localLog, setLocalLog] = useState<Partial<IbadahLog>>(log || {
-        fajr_status: 'none',
-        dhuhr_status: 'none',
-        asr_status: 'none',
-        maghrib_status: 'none',
-        isha_status: 'none',
-        taraweeh_status: 'none',
-        quran_minutes: 0,
-        tahajjud: false,
-        dhikr: false,
-        sadaqah: false,
-        missed_reasons: {},
-    });
+const DEFAULT_LOG: Partial<IbadahLog> = {
+    fajr_status: 'none',
+    dhuhr_status: 'none',
+    asr_status: 'none',
+    maghrib_status: 'none',
+    isha_status: 'none',
+    taraweeh_status: 'none',
+    quran_minutes: 0,
+    tahajjud: false,
+    dhikr: false,
+    sadaqah: false,
+    sunnah_before: false,
+    sunnah_after: false,
+    surah_yaseen: false,
+    surah_mulk: false,
+    surah_sajdah: false,
+    surah_waqiah: false,
+    morning_adhkar: false,
+    evening_adhkar: false,
+    missed_reasons: {},
+};
+
+export function IbadahDayDetail({ day, monthName, hijriKey, log, onSave, onClose }: IbadahDayDetailProps) {
+    const [localLog, setLocalLog] = useState<Partial<IbadahLog>>(log || DEFAULT_LOG);
     const [saving, setSaving] = useState(false);
     const [activeMissedPrayer, setActiveMissedPrayer] = useState<string | null>(null);
 
@@ -53,7 +63,6 @@ export function IbadahDayDetail({ day, log, onSave, onClose }: IbadahDayDetailPr
         if (status === 'missed') {
             setActiveMissedPrayer(prayerId);
         } else {
-            // Remove reason if no longer missed
             const newReasons = { ...(localLog.missed_reasons || {}) };
             delete newReasons[prayerId];
             setLocalLog(prev => ({ ...prev, missed_reasons: newReasons }));
@@ -79,11 +88,15 @@ export function IbadahDayDetail({ day, log, onSave, onClose }: IbadahDayDetailPr
         onClose();
     };
 
+    const toggleField = (field: keyof IbadahLog) => (checked: boolean) => {
+        setLocalLog(prev => ({ ...prev, [field]: checked }));
+    };
+
     return (
         <Dialog open={true} onOpenChange={onClose}>
             <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle className="text-primary">Ramadan Day {day} - Ibadah Log</DialogTitle>
+                    <DialogTitle className="text-primary">{monthName} Day {day} - Ibadah Log</DialogTitle>
                 </DialogHeader>
 
                 <div className="space-y-6 py-4">
@@ -101,25 +114,13 @@ export function IbadahDayDetail({ day, log, onSave, onClose }: IbadahDayDetailPr
                                         <div className="flex items-center justify-between">
                                             <Label htmlFor={prayer.id} className="text-base font-medium">{prayer.label}</Label>
                                             <div className="flex bg-muted rounded-lg p-1 gap-1">
-                                                <StatusButton
-                                                    active={status === 'completed'}
-                                                    onClick={() => handleStatusChange(prayer.id, 'completed')}
-                                                    variant="success"
-                                                >
+                                                <StatusButton active={status === 'completed'} onClick={() => handleStatusChange(prayer.id, 'completed')} variant="success">
                                                     <CheckCircle2 className="h-4 w-4" />
                                                 </StatusButton>
-                                                <StatusButton
-                                                    active={status === 'delayed'}
-                                                    onClick={() => handleStatusChange(prayer.id, 'delayed')}
-                                                    variant="warning"
-                                                >
+                                                <StatusButton active={status === 'delayed'} onClick={() => handleStatusChange(prayer.id, 'delayed')} variant="warning">
                                                     <Clock className="h-4 w-4" />
                                                 </StatusButton>
-                                                <StatusButton
-                                                    active={status === 'missed'}
-                                                    onClick={() => handleStatusChange(prayer.id, 'missed')}
-                                                    variant="error"
-                                                >
+                                                <StatusButton active={status === 'missed'} onClick={() => handleStatusChange(prayer.id, 'missed')} variant="error">
                                                     <XCircle className="h-4 w-4" />
                                                 </StatusButton>
                                             </div>
@@ -142,19 +143,34 @@ export function IbadahDayDetail({ day, log, onSave, onClose }: IbadahDayDetailPr
                         </div>
                     </div>
 
-                    {/* Extra Ibadah */}
+                    {/* Sunnah Prayers */}
                     <div className="space-y-4 pt-2 border-t border-border">
-                        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Extra Ibadah</h3>
-
+                        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Sunnah Prayers</h3>
                         <div className="space-y-4">
                             <div className="flex items-center justify-between">
-                                <Label htmlFor="quran" className="flex flex-col">
+                                <Label className="text-base">Sunnah Before Prayer</Label>
+                                <Switch checked={localLog.sunnah_before} onCheckedChange={toggleField('sunnah_before')} />
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <Label className="text-base">Sunnah After Prayer</Label>
+                                <Switch checked={localLog.sunnah_after} onCheckedChange={toggleField('sunnah_after')} />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Qur'an Recitation */}
+                    <div className="space-y-4 pt-2 border-t border-border">
+                        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                            <BookOpen className="h-4 w-4" /> Qur'an Recitation
+                        </h3>
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                                <Label className="flex flex-col">
                                     <span>Quran Reading</span>
                                     <span className="text-xs font-normal text-muted-foreground">Approx. minutes today</span>
                                 </Label>
                                 <div className="flex items-center gap-2">
                                     <Input
-                                        id="quran"
                                         type="number"
                                         value={localLog.quran_minutes || ''}
                                         onChange={(e) => setLocalLog(prev => ({ ...prev, quran_minutes: parseInt(e.target.value) || 0 }))}
@@ -163,32 +179,61 @@ export function IbadahDayDetail({ day, log, onSave, onClose }: IbadahDayDetailPr
                                     <span className="text-sm text-muted-foreground">min</span>
                                 </div>
                             </div>
-
                             <div className="flex items-center justify-between">
-                                <Label htmlFor="tahajjud" className="text-base">Tahajjud</Label>
-                                <Switch
-                                    id="tahajjud"
-                                    checked={localLog.tahajjud}
-                                    onCheckedChange={(checked) => setLocalLog(prev => ({ ...prev, tahajjud: checked }))}
-                                />
+                                <Label className="text-base">Surah Yaseen</Label>
+                                <Switch checked={localLog.surah_yaseen} onCheckedChange={toggleField('surah_yaseen')} />
                             </div>
-
                             <div className="flex items-center justify-between">
-                                <Label htmlFor="dhikr" className="text-base">Dhikr</Label>
-                                <Switch
-                                    id="dhikr"
-                                    checked={localLog.dhikr}
-                                    onCheckedChange={(checked) => setLocalLog(prev => ({ ...prev, dhikr: checked }))}
-                                />
+                                <Label className="text-base">Surah Mulk</Label>
+                                <Switch checked={localLog.surah_mulk} onCheckedChange={toggleField('surah_mulk')} />
                             </div>
-
                             <div className="flex items-center justify-between">
-                                <Label htmlFor="sadaqah" className="text-base">Sadaqah</Label>
-                                <Switch
-                                    id="sadaqah"
-                                    checked={localLog.sadaqah}
-                                    onCheckedChange={(checked) => setLocalLog(prev => ({ ...prev, sadaqah: checked }))}
-                                />
+                                <Label className="text-base">Surah Sajdah</Label>
+                                <Switch checked={localLog.surah_sajdah} onCheckedChange={toggleField('surah_sajdah')} />
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <Label className="text-base">Surah Waqiah</Label>
+                                <Switch checked={localLog.surah_waqiah} onCheckedChange={toggleField('surah_waqiah')} />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Daily Adhkar */}
+                    <div className="space-y-4 pt-2 border-t border-border">
+                        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                            Daily Adhkar
+                        </h3>
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                                <Label className="text-base flex items-center gap-2">
+                                    <Sun className="h-4 w-4 text-amber-500" /> Morning Adhkar
+                                </Label>
+                                <Switch checked={localLog.morning_adhkar} onCheckedChange={toggleField('morning_adhkar')} />
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <Label className="text-base flex items-center gap-2">
+                                    <Moon className="h-4 w-4 text-indigo-500" /> Evening Adhkar
+                                </Label>
+                                <Switch checked={localLog.evening_adhkar} onCheckedChange={toggleField('evening_adhkar')} />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Extra Ibadah */}
+                    <div className="space-y-4 pt-2 border-t border-border">
+                        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Extra Ibadah</h3>
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                                <Label className="text-base">Tahajjud</Label>
+                                <Switch checked={localLog.tahajjud} onCheckedChange={toggleField('tahajjud')} />
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <Label className="text-base">Dhikr</Label>
+                                <Switch checked={localLog.dhikr} onCheckedChange={toggleField('dhikr')} />
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <Label className="text-base">Sadaqah</Label>
+                                <Switch checked={localLog.sadaqah} onCheckedChange={toggleField('sadaqah')} />
                             </div>
                         </div>
                     </div>
@@ -201,7 +246,7 @@ export function IbadahDayDetail({ day, log, onSave, onClose }: IbadahDayDetailPr
                     </div>
                 </div>
 
-                {/* Missed Reason Choice (Internal Modal state) */}
+                {/* Missed Reason Choice */}
                 {activeMissedPrayer && (
                     <div className="absolute inset-0 bg-background/95 flex items-center justify-center p-6 z-50">
                         <Card className="w-full">
@@ -258,4 +303,3 @@ function StatusButton({ active, onClick, variant, children }: {
         </button>
     );
 }
-

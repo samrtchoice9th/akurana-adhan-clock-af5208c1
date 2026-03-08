@@ -1,23 +1,35 @@
 import { useState, useMemo } from 'react';
-import { useIbadah, IbadahLog } from '@/hooks/useIbadah';
+import { useIbadah, IbadahLog, HIJRI_MONTHS, buildHijriKey, daysInHijriMonth } from '@/hooks/useIbadah';
 import { IbadahDayDetail } from '../components/IbadahDayDetail';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { Trophy, Calendar as CalendarIcon, ArrowLeft, Target, Heart, BookOpen, AlertCircle, LogOut } from 'lucide-react';
+import { Trophy, ArrowLeft, Target, Heart, BookOpen, AlertCircle, LogOut, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useHijriDate } from '@/hooks/useHijriDate';
 
 export default function RamadanChart() {
-    const { logs, loading, saveLog, calculateScore, getWeeklyReport } = useIbadah();
     const { profile, signOut } = useAuth();
     const { hijri } = useHijriDate();
     const navigate = useNavigate();
 
-    const ramadanLabel = hijri ? `Ramadan ${hijri.hijri_year} AH` : 'Ramadan';
+    // Month/year navigation state, default to current hijri month
+    const currentMonth = hijri?.hijri_month ?? 1;
+    const currentYear = hijri?.hijri_year ?? 1447;
+    const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
+    const [selectedYear, setSelectedYear] = useState<number | null>(null);
+
+    const viewMonth = selectedMonth ?? currentMonth;
+    const viewYear = selectedYear ?? currentYear;
+
+    const { logs, loading, saveLog, calculateScore, getWeeklyReport } = useIbadah(viewMonth, viewYear);
+
+    const monthName = HIJRI_MONTHS[viewMonth] || `Month ${viewMonth}`;
+    const totalDays = daysInHijriMonth(viewMonth);
+
     const [selectedDay, setSelectedDay] = useState<number | null>(null);
     const weeklyReport = useMemo(() => getWeeklyReport(), [getWeeklyReport]);
 
@@ -26,14 +38,27 @@ export default function RamadanChart() {
         navigate('/auth', { replace: true });
     };
 
+    const navigateMonth = (direction: -1 | 1) => {
+        let m = viewMonth + direction;
+        let y = viewYear;
+        if (m < 1) { m = 12; y -= 1; }
+        if (m > 12) { m = 1; y += 1; }
+        setSelectedMonth(m);
+        setSelectedYear(y);
+        setSelectedDay(null);
+    };
+
+    const isCurrentMonth = viewMonth === currentMonth && viewYear === currentYear;
+
     if (loading) {
         return <div className="flex items-center justify-center p-12">Loading Chart...</div>;
     }
 
-    const days = Array.from({ length: 30 }, (_, i) => i + 1);
+    const days = Array.from({ length: totalDays }, (_, i) => i + 1);
 
     const getDayStatusColor = (day: number) => {
-        const log = logs[String(day)];
+        const key = buildHijriKey(viewYear, viewMonth, day);
+        const log = logs[key];
         if (!log) return 'bg-muted/30 border-dashed';
 
         const score = calculateScore(log);
@@ -42,7 +67,6 @@ export default function RamadanChart() {
         return 'bg-rose-500/20 border-rose-500/50';
     };
 
-    const currentDayLog = selectedDay ? logs[String(selectedDay)] : null;
     const currentScore = Object.values(logs).length > 0
         ? Math.round(Object.values(logs).reduce((acc, log) => acc + calculateScore(log), 0) / Object.values(logs).length)
         : 0;
@@ -64,14 +88,22 @@ export default function RamadanChart() {
                         )}
                     </div>
                 </div>
-                <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="px-3 py-1 text-sm bg-primary/5 border-primary/20 text-primary">
-                        {ramadanLabel}
-                    </Badge>
-                    <button onClick={handleLogout} className="p-2 hover:bg-muted rounded-full transition-colors text-muted-foreground hover:text-foreground" title="Logout">
-                        <LogOut className="h-4 w-4" />
-                    </button>
-                </div>
+                <button onClick={handleLogout} className="p-2 hover:bg-muted rounded-full transition-colors text-muted-foreground hover:text-foreground" title="Logout">
+                    <LogOut className="h-4 w-4" />
+                </button>
+            </div>
+
+            {/* Month Selector */}
+            <div className="flex items-center justify-center gap-3">
+                <Button variant="ghost" size="icon" onClick={() => navigateMonth(-1)}>
+                    <ChevronLeft className="h-5 w-5" />
+                </Button>
+                <Badge variant="outline" className="px-4 py-2 text-base bg-primary/5 border-primary/20 text-primary font-bold">
+                    {monthName} {viewYear} AH
+                </Badge>
+                <Button variant="ghost" size="icon" onClick={() => navigateMonth(1)} disabled={isCurrentMonth}>
+                    <ChevronRight className="h-5 w-5" />
+                </Button>
             </div>
 
             {/* Summary Score */}
@@ -113,7 +145,8 @@ export default function RamadanChart() {
             {/* Grid */}
             <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-10 gap-3">
                 {days.map((day) => {
-                    const log = logs[String(day)];
+                    const key = buildHijriKey(viewYear, viewMonth, day);
+                    const log = logs[key];
                     const score = log ? calculateScore(log) : null;
 
                     return (
@@ -121,10 +154,10 @@ export default function RamadanChart() {
                             key={day}
                             onClick={() => setSelectedDay(day)}
                             className={`
-                aspect-square rounded-xl border-2 flex flex-col items-center justify-center transition-all duration-200
-                hover:scale-105 active:scale-95
-                ${getDayStatusColor(day)}
-              `}
+                                aspect-square rounded-xl border-2 flex flex-col items-center justify-center transition-all duration-200
+                                hover:scale-105 active:scale-95
+                                ${getDayStatusColor(day)}
+                            `}
                         >
                             <span className="text-xs font-bold text-muted-foreground mb-0.5">DAY</span>
                             <span className="text-xl font-black text-foreground leading-none">{day}</span>
@@ -179,8 +212,10 @@ export default function RamadanChart() {
             {selectedDay && (
                 <IbadahDayDetail
                     day={String(selectedDay)}
-                    log={logs[String(selectedDay)]}
-                    onSave={(updates) => saveLog(String(selectedDay), updates)}
+                    monthName={monthName}
+                    hijriKey={buildHijriKey(viewYear, viewMonth, selectedDay)}
+                    log={logs[buildHijriKey(viewYear, viewMonth, selectedDay)]}
+                    onSave={(updates) => saveLog(buildHijriKey(viewYear, viewMonth, selectedDay), updates)}
                     onClose={() => setSelectedDay(null)}
                 />
             )}

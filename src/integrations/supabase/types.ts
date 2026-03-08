@@ -281,6 +281,7 @@ export type Database = {
           created_at: string | null
           dhikr: boolean | null
           dhuhr_status: string | null
+          evening_adhkar: boolean | null
           fajr_status: string | null
           hijri_date: string
           id: string
@@ -288,9 +289,16 @@ export type Database = {
           maghrib_status: string | null
           masjid_id: string | null
           missed_reasons: Json | null
+          morning_adhkar: boolean | null
           notes: string | null
           quran_minutes: number | null
           sadaqah: boolean | null
+          sunnah_after: boolean | null
+          sunnah_before: boolean | null
+          surah_mulk: boolean | null
+          surah_sajdah: boolean | null
+          surah_waqiah: boolean | null
+          surah_yaseen: boolean | null
           tahajjud: boolean | null
           taraweeh_status: string | null
           updated_at: string | null
@@ -301,6 +309,7 @@ export type Database = {
           created_at?: string | null
           dhikr?: boolean | null
           dhuhr_status?: string | null
+          evening_adhkar?: boolean | null
           fajr_status?: string | null
           hijri_date: string
           id?: string
@@ -308,9 +317,16 @@ export type Database = {
           maghrib_status?: string | null
           masjid_id?: string | null
           missed_reasons?: Json | null
+          morning_adhkar?: boolean | null
           notes?: string | null
           quran_minutes?: number | null
           sadaqah?: boolean | null
+          sunnah_after?: boolean | null
+          sunnah_before?: boolean | null
+          surah_mulk?: boolean | null
+          surah_sajdah?: boolean | null
+          surah_waqiah?: boolean | null
+          surah_yaseen?: boolean | null
           tahajjud?: boolean | null
           taraweeh_status?: string | null
           updated_at?: string | null
@@ -321,6 +337,7 @@ export type Database = {
           created_at?: string | null
           dhikr?: boolean | null
           dhuhr_status?: string | null
+          evening_adhkar?: boolean | null
           fajr_status?: string | null
           hijri_date?: string
           id?: string
@@ -328,9 +345,16 @@ export type Database = {
           maghrib_status?: string | null
           masjid_id?: string | null
           missed_reasons?: Json | null
+          morning_adhkar?: boolean | null
           notes?: string | null
           quran_minutes?: number | null
           sadaqah?: boolean | null
+          sunnah_after?: boolean | null
+          sunnah_before?: boolean | null
+          surah_mulk?: boolean | null
+          surah_sajdah?: boolean | null
+          surah_waqiah?: boolean | null
+          surah_yaseen?: boolean | null
           tahajjud?: boolean | null
           taraweeh_status?: string | null
           updated_at?: string | null
