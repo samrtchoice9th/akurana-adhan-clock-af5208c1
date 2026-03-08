@@ -1,3 +1,11 @@
+const CACHE_VERSION = 'akurana-prayer-v4';
+const ASSETS_TO_CACHE = [
+  '/manifest.json',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
+];
+
+// Firebase setup
 const configUrl = new URL(self.location.href);
 const firebaseConfig = {
   apiKey: configUrl.searchParams.get('apiKey') || '',
@@ -10,7 +18,6 @@ const firebaseConfig = {
 
 if (Object.values(firebaseConfig).every(Boolean)) {
   try {
-    console.log('[sw.js] Attempting to load local Firebase scripts...');
     importScripts('/firebase-compat/firebase-app-compat.js');
     importScripts('/firebase-compat/firebase-messaging-compat.js');
 
@@ -18,14 +25,10 @@ if (Object.values(firebaseConfig).every(Boolean)) {
       throw new Error('Firebase object not found after importScripts');
     }
 
-    console.log('[sw.js] Initializing Firebase app...');
     firebase.initializeApp(firebaseConfig);
-
-    console.log('[sw.js] Initializing Firebase messaging...');
     const messaging = firebase.messaging();
 
     messaging.onBackgroundMessage((payload) => {
-      console.log('[sw.js] Received background message:', payload);
       const title = payload.notification?.title || 'Prayer Reminder';
       const options = {
         body: payload.notification?.body || 'Time for Salah',
@@ -35,70 +38,68 @@ if (Object.values(firebaseConfig).every(Boolean)) {
       };
       self.registration.showNotification(title, options);
     });
-    console.log('[sw.js] Firebase Messaging initialized successfully');
   } catch (error) {
-    console.error('[sw.js] Failed to initialize Firebase Messaging:', {
-      name: error.name,
-      message: error.message,
-      stack: error.stack
-    });
+    console.error('[sw.js] Firebase init failed:', error.message);
   }
 }
 
-const CACHE_NAME = 'akurana-prayer-v3';
-const ASSETS_TO_CACHE = [
-  '/manifest.json',
-  '/icons/icon-192.png',
-  '/icons/icon-512.png',
-];
-
+// Install: cache only static assets, force activate
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS_TO_CACHE))
+    caches.open(CACHE_VERSION).then((cache) => cache.addAll(ASSETS_TO_CACHE))
   );
   self.skipWaiting();
 });
 
+// Activate: delete ALL old caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
+      Promise.all(keys.filter((k) => k !== CACHE_VERSION).map((k) => caches.delete(k)))
     )
   );
   self.clients.claim();
 });
 
+// Fetch: network-only for HTML/JS/CSS (Vite hashes these already).
+// Cache-first only for static assets (icons, manifest).
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
 
-  // Network-first for HTML and JS (ensures fresh code always loads)
-  if (event.request.mode === 'navigate' || url.pathname.endsWith('.js') || url.pathname.endsWith('.css') || url.pathname === '/') {
+  // Network-only for navigations, scripts, and styles
+  if (
+    event.request.mode === 'navigate' ||
+    url.pathname.endsWith('.js') ||
+    url.pathname.endsWith('.css') ||
+    url.pathname === '/'
+  ) {
     event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-          return response;
-        })
-        .catch(() => caches.match(event.request))
+      fetch(event.request).catch(() => caches.match(event.request))
     );
     return;
   }
 
-  // Cache-first for static assets (icons, manifest)
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached;
-      return fetch(event.request).then((response) => {
-        const clone = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-        return response;
-      });
-    })
-  );
+  // Cache-first for static assets only
+  if (ASSETS_TO_CACHE.some((a) => url.pathname === a)) {
+    event.respondWith(
+      caches.match(event.request).then((cached) => {
+        if (cached) return cached;
+        return fetch(event.request).then((response) => {
+          const clone = response.clone();
+          caches.open(CACHE_VERSION).then((cache) => cache.put(event.request, clone));
+          return response;
+        });
+      })
+    );
+    return;
+  }
+
+  // Everything else: network-only
+  return;
 });
 
+// Handle notification clicks
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   event.waitUntil(
@@ -110,4 +111,11 @@ self.addEventListener('notificationclick', (event) => {
       return null;
     })
   );
+});
+
+// Listen for skipWaiting message from main thread
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
