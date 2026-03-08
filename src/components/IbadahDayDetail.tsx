@@ -342,6 +342,21 @@ export function IbadahDayDetail({ day, monthName, hijriKey, log, onSave, onClose
                     </div>
                 )}
             </DialogContent>
+
+            {/* Adhkar Reading Dialog */}
+            <Dialog open={!!activeAdhkarItem} onOpenChange={() => setActiveAdhkarItem(null)}>
+                <DialogContent className="sm:max-w-[400px]">
+                    <DialogHeader>
+                        <DialogTitle className="text-primary">{activeAdhkarItem?.label}</DialogTitle>
+                    </DialogHeader>
+                    <div className="py-4">
+                        <p className="text-2xl leading-relaxed font-arabic text-foreground whitespace-pre-line" dir="rtl">
+                            {activeAdhkarItem?.fullArabic}
+                        </p>
+                    </div>
+                    <Button onClick={() => setActiveAdhkarItem(null)} className="w-full">Done</Button>
+                </DialogContent>
+            </Dialog>
         </Dialog>
     );
 }
