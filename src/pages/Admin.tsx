@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowLeft, Lock, Upload, Moon, AlertTriangle, Clock, CheckCircle, BookOpen, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, Lock, Upload, Moon, AlertTriangle, Clock, CheckCircle, BookOpen, ShieldAlert, MessageSquare, Star, Send } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { CsvChangeRow } from '@/lib/csvParser';
@@ -88,10 +88,11 @@ export default function Admin() {
       </div>
 
       <Tabs defaultValue="csv" className="w-full">
-        <TabsList className="w-full">
-          <TabsTrigger value="csv" className="flex-1">Excel Upload</TabsTrigger>
-          <TabsTrigger value="hijri" className="flex-1">Hijri Control</TabsTrigger>
-          <TabsTrigger value="hadith" className="flex-1">Hadith</TabsTrigger>
+        <TabsList className="w-full grid grid-cols-4">
+          <TabsTrigger value="csv" className="text-xs">Excel</TabsTrigger>
+          <TabsTrigger value="hijri" className="text-xs">Hijri</TabsTrigger>
+          <TabsTrigger value="hadith" className="text-xs">Hadith</TabsTrigger>
+          <TabsTrigger value="reviews" className="text-xs">Reviews</TabsTrigger>
         </TabsList>
 
         <TabsContent value="csv">
@@ -102,6 +103,9 @@ export default function Admin() {
         </TabsContent>
         <TabsContent value="hadith">
           <HadithTab />
+        </TabsContent>
+        <TabsContent value="reviews">
+          <AdminReviewsTab />
         </TabsContent>
       </Tabs>
     </div>
