@@ -389,6 +389,36 @@ export type Database = {
         }
         Relationships: []
       }
+      user_reviews: {
+        Row: {
+          admin_replied_at: string | null
+          admin_reply: string | null
+          created_at: string | null
+          id: string
+          message: string
+          rating: number | null
+          user_id: string
+        }
+        Insert: {
+          admin_replied_at?: string | null
+          admin_reply?: string | null
+          created_at?: string | null
+          id?: string
+          message: string
+          rating?: number | null
+          user_id: string
+        }
+        Update: {
+          admin_replied_at?: string | null
+          admin_reply?: string | null
+          created_at?: string | null
+          id?: string
+          message?: string
+          rating?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
