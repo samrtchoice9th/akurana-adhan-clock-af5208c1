@@ -5,6 +5,9 @@ import path from "path";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  define: {
+    __BUILD_VERSION__: JSON.stringify(Date.now().toString()),
+  },
   server: {
     host: "::",
     port: 8080,
