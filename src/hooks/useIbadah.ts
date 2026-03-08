@@ -3,6 +3,11 @@ import { supabase } from '@/integrations/supabase/client';
 
 export type IbadahStatus = 'completed' | 'delayed' | 'missed' | 'none';
 
+export interface AdhkarChecklist {
+    morning: string[];
+    evening: string[];
+}
+
 export interface IbadahLog {
     hijri_date: string;
     fajr_status: IbadahStatus;
@@ -23,6 +28,7 @@ export interface IbadahLog {
     surah_waqiah: boolean;
     morning_adhkar: boolean;
     evening_adhkar: boolean;
+    adhkar_checklist: AdhkarChecklist;
     missed_reasons: Record<string, string>;
     notes?: string;
 }
@@ -123,6 +129,7 @@ export function useIbadah(hijriMonth?: number, hijriYear?: number) {
                     surah_waqiah: (row as any).surah_waqiah ?? false,
                     morning_adhkar: (row as any).morning_adhkar ?? false,
                     evening_adhkar: (row as any).evening_adhkar ?? false,
+                    adhkar_checklist: (row as any).adhkar_checklist ?? { morning: [], evening: [] },
                     missed_reasons: (row.missed_reasons as Record<string, string>) || {},
                     notes: row.notes ?? undefined,
                 };
@@ -185,15 +192,20 @@ export function useIbadah(hijriMonth?: number, hijriYear?: number) {
         // Quran minutes = 10
         score += Math.min(10, Math.floor(dayLog.quran_minutes / 10));
 
-        // New items: 3 points each = 24 total
+        // New items: 3 points each = 18 total (sunnah + surahs)
         if (dayLog.sunnah_before) score += 3;
         if (dayLog.sunnah_after) score += 3;
         if (dayLog.surah_yaseen) score += 3;
         if (dayLog.surah_mulk) score += 3;
         if (dayLog.surah_sajdah) score += 3;
         if (dayLog.surah_waqiah) score += 3;
-        if (dayLog.morning_adhkar) score += 3;
-        if (dayLog.evening_adhkar) score += 3;
+
+        // Adhkar checklist: 6 points total based on items checked
+        const checklist = dayLog.adhkar_checklist || { morning: [], evening: [] };
+        const totalChecked = (checklist.morning?.length || 0) + (checklist.evening?.length || 0);
+        if (totalChecked >= 5) score += 6;
+        else if (totalChecked >= 3) score += 4;
+        else if (totalChecked >= 1) score += 2;
 
         return Math.round((score / maxScore) * 100);
     }, []);

@@ -277,6 +277,7 @@ export type Database = {
       }
       ramadan_ibadah_logs: {
         Row: {
+          adhkar_checklist: Json | null
           asr_status: string | null
           created_at: string | null
           dhikr: boolean | null
@@ -305,6 +306,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          adhkar_checklist?: Json | null
           asr_status?: string | null
           created_at?: string | null
           dhikr?: boolean | null
@@ -333,6 +335,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          adhkar_checklist?: Json | null
           asr_status?: string | null
           created_at?: string | null
           dhikr?: boolean | null

@@ -6,8 +6,10 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Alert } from '@/components/ui/alert';
-import { AlertCircle, CheckCircle2, XCircle, Clock, Info, BookOpen, Sun, Moon } from 'lucide-react';
-import { IbadahLog, IbadahStatus, MISSED_REASONS, CORRECTIVE_SUGGESTIONS } from '@/hooks/useIbadah';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { AlertCircle, CheckCircle2, XCircle, Clock, Info, BookOpen, Sun, Moon, ChevronDown } from 'lucide-react';
+import { IbadahLog, IbadahStatus, MISSED_REASONS, CORRECTIVE_SUGGESTIONS, AdhkarChecklist } from '@/hooks/useIbadah';
 
 interface IbadahDayDetailProps {
     day: string;
@@ -25,6 +27,19 @@ const PRAYERS = [
     { id: 'maghrib', label: 'Maghrib' },
     { id: 'isha', label: 'Isha' },
     { id: 'taraweeh', label: 'Taraweeh' },
+];
+
+const ADHKAR_ITEMS: { id: string; label: string; arabic: string; periods: ('morning' | 'evening')[] }[] = [
+    { id: 'sayyidul_istighfar', label: 'Sayyidul Istighfar', arabic: 'سيد الاستغفار', periods: ['morning', 'evening'] },
+    { id: 'subhanallah_100', label: 'Subhanallahi wa bihamdihi (100x)', arabic: 'سبحان الله وبحمده', periods: ['morning', 'evening'] },
+    { id: 'la_ilaha_illallah_100', label: 'La ilaha illallah... (100x)', arabic: 'لا إله إلا الله وحده لا شريك له', periods: ['morning', 'evening'] },
+    { id: 'asbahna_amsayna', label: 'Asbahna/Amsayna Dua', arabic: 'اللهم بك أصبحنا / أمسينا', periods: ['morning', 'evening'] },
+    { id: 'asalukal_aafiyah', label: "As'alukal Aafiyah", arabic: 'اللهم إني أسألك العافية', periods: ['morning', 'evening'] },
+    { id: 'aalimal_ghayb', label: 'Aalimal Ghayb', arabic: 'اللهم عالم الغيب والشهادة', periods: ['morning', 'evening'] },
+    { id: 'fitratil_islam', label: 'Ala Fitratil Islam', arabic: 'أصبحنا على فطرة الإسلام', periods: ['morning', 'evening'] },
+    { id: 'adada_khalqihi', label: 'Subhanallahi adada khalqihi (3x)', arabic: 'سبحان الله وبحمده عدد خلقه', periods: ['morning', 'evening'] },
+    { id: 'la_yadurru', label: 'Bismillahilladhi la yadurru (3x)', arabic: 'بسم الله الذي لا يضر مع اسمه شيء', periods: ['morning', 'evening'] },
+    { id: 'audhu_bikalimatillah', label: "A'udhu bikalimatillah", arabic: 'أعوذ بكلمات الله التامات', periods: ['evening'] },
 ];
 
 const DEFAULT_LOG: Partial<IbadahLog> = {
@@ -46,6 +61,7 @@ const DEFAULT_LOG: Partial<IbadahLog> = {
     surah_waqiah: false,
     morning_adhkar: false,
     evening_adhkar: false,
+    adhkar_checklist: { morning: [], evening: [] },
     missed_reasons: {},
 };
 
@@ -90,6 +106,26 @@ export function IbadahDayDetail({ day, monthName, hijriKey, log, onSave, onClose
 
     const toggleField = (field: keyof IbadahLog) => (checked: boolean) => {
         setLocalLog(prev => ({ ...prev, [field]: checked }));
+    };
+
+    const toggleAdhkarItem = (period: 'morning' | 'evening', itemId: string, checked: boolean) => {
+        setLocalLog(prev => {
+            const checklist = prev.adhkar_checklist || { morning: [], evening: [] };
+            const currentItems = checklist[period] || [];
+            const newItems = checked
+                ? [...currentItems, itemId]
+                : currentItems.filter(id => id !== itemId);
+            const newChecklist = { ...checklist, [period]: newItems };
+            // Also update legacy booleans for backward compat
+            const morningCount = newChecklist.morning?.length || 0;
+            const eveningCount = newChecklist.evening?.length || 0;
+            return {
+                ...prev,
+                adhkar_checklist: newChecklist,
+                morning_adhkar: morningCount > 0,
+                evening_adhkar: eveningCount > 0,
+            };
+        });
     };
 
     return (
@@ -198,25 +234,51 @@ export function IbadahDayDetail({ day, monthName, hijriKey, log, onSave, onClose
                         </div>
                     </div>
 
-                    {/* Daily Adhkar */}
+                    {/* Daily Adhkar Checklist */}
                     <div className="space-y-4 pt-2 border-t border-border">
                         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
                             Daily Adhkar
                         </h3>
-                        <div className="space-y-4">
-                            <div className="flex items-center justify-between">
-                                <Label className="text-base flex items-center gap-2">
-                                    <Sun className="h-4 w-4 text-amber-500" /> Morning Adhkar
-                                </Label>
-                                <Switch checked={localLog.morning_adhkar} onCheckedChange={toggleField('morning_adhkar')} />
-                            </div>
-                            <div className="flex items-center justify-between">
-                                <Label className="text-base flex items-center gap-2">
-                                    <Moon className="h-4 w-4 text-indigo-500" /> Evening Adhkar
-                                </Label>
-                                <Switch checked={localLog.evening_adhkar} onCheckedChange={toggleField('evening_adhkar')} />
-                            </div>
-                        </div>
+
+                        {(['morning', 'evening'] as const).map(period => {
+                            const items = ADHKAR_ITEMS.filter(item => item.periods.includes(period));
+                            const checklist = localLog.adhkar_checklist || { morning: [], evening: [] };
+                            const checkedCount = checklist[period]?.length || 0;
+
+                            return (
+                                <Collapsible key={period}>
+                                    <CollapsibleTrigger className="flex items-center justify-between w-full py-2 px-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
+                                        <span className="flex items-center gap-2 text-sm font-medium">
+                                            {period === 'morning' ? <Sun className="h-4 w-4 text-amber-500" /> : <Moon className="h-4 w-4 text-indigo-500" />}
+                                            {period === 'morning' ? 'Morning' : 'Evening'} Adhkar
+                                            <span className="text-xs text-muted-foreground">({checkedCount}/{items.length})</span>
+                                        </span>
+                                        <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 [[data-state=open]>&]:rotate-180" />
+                                    </CollapsibleTrigger>
+                                    <CollapsibleContent className="pt-2 space-y-1">
+                                        {items.map(item => {
+                                            const isChecked = checklist[period]?.includes(item.id) || false;
+                                            return (
+                                                <label
+                                                    key={item.id}
+                                                    className="flex items-start gap-3 py-2 px-3 rounded-md hover:bg-muted/30 cursor-pointer transition-colors"
+                                                >
+                                                    <Checkbox
+                                                        checked={isChecked}
+                                                        onCheckedChange={(checked) => toggleAdhkarItem(period, item.id, !!checked)}
+                                                        className="mt-0.5"
+                                                    />
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-sm font-medium leading-tight">{item.label}</p>
+                                                        <p className="text-xs text-muted-foreground mt-0.5 font-arabic" dir="rtl">{item.arabic}</p>
+                                                    </div>
+                                                </label>
+                                            );
+                                        })}
+                                    </CollapsibleContent>
+                                </Collapsible>
+                            );
+                        })}
                     </div>
 
                     {/* Extra Ibadah */}
