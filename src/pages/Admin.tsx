@@ -704,3 +704,153 @@ function HadithTab() {
     </div>
   );
 }
+
+/* =================== Admin Reviews Tab =================== */
+
+interface ReviewWithProfile {
+  id: string;
+  user_id: string;
+  message: string;
+  rating: number;
+  admin_reply: string | null;
+  admin_replied_at: string | null;
+  created_at: string;
+  user_name?: string;
+}
+
+function AdminReviewsTab() {
+  const { toast } = useToast();
+  const [reviews, setReviews] = useState<ReviewWithProfile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [replyTexts, setReplyTexts] = useState<Record<string, string>>({});
+  const [replyBusy, setReplyBusy] = useState<string | null>(null);
+
+  const fetchReviews = useCallback(async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('user_reviews')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      toast({ title: 'Error loading reviews', description: error.message, variant: 'destructive' });
+      setLoading(false);
+      return;
+    }
+
+    if (!data || data.length === 0) {
+      setReviews([]);
+      setLoading(false);
+      return;
+    }
+
+    // Fetch profile names
+    const userIds = [...new Set((data as ReviewWithProfile[]).map(r => r.user_id))];
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, full_name')
+      .in('id', userIds);
+
+    const nameMap: Record<string, string> = {};
+    if (profiles) {
+      profiles.forEach((p: { id: string; full_name: string }) => {
+        nameMap[p.id] = p.full_name;
+      });
+    }
+
+    setReviews((data as ReviewWithProfile[]).map(r => ({
+      ...r,
+      user_name: nameMap[r.user_id] || 'Unknown User',
+    })));
+    setLoading(false);
+  }, [toast]);
+
+  useEffect(() => { fetchReviews(); }, [fetchReviews]);
+
+  const handleReply = async (reviewId: string) => {
+    const text = replyTexts[reviewId]?.trim();
+    if (!text) return;
+    if (text.length > 1000) {
+      toast({ title: 'Reply too long (max 1000 chars)', variant: 'destructive' });
+      return;
+    }
+    setReplyBusy(reviewId);
+    const { error } = await supabase
+      .from('user_reviews')
+      .update({ admin_reply: text, admin_replied_at: new Date().toISOString() })
+      .eq('id', reviewId);
+
+    if (error) {
+      toast({ title: 'Error sending reply', description: error.message, variant: 'destructive' });
+    } else {
+      toast({ title: 'Reply sent' });
+      setReplyTexts(prev => ({ ...prev, [reviewId]: '' }));
+      await fetchReviews();
+    }
+    setReplyBusy(null);
+  };
+
+  return (
+    <div className="space-y-4 mt-4">
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm text-primary flex items-center gap-2">
+            <MessageSquare className="h-4 w-4" /> User Reviews ({reviews.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {loading ? (
+            <p className="text-muted-foreground text-xs p-4">Loading...</p>
+          ) : reviews.length === 0 ? (
+            <p className="text-muted-foreground text-xs p-4">No reviews yet.</p>
+          ) : (
+            <div className="max-h-[70vh] overflow-auto divide-y divide-border">
+              {reviews.map((r) => (
+                <div key={r.id} className="p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-foreground">{r.user_name}</span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {new Date(r.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-0.5">
+                    {[1, 2, 3, 4, 5].map((s) => (
+                      <Star key={s} className={`h-3 w-3 ${s <= r.rating ? 'text-primary fill-primary' : 'text-muted-foreground'}`} />
+                    ))}
+                  </div>
+                  <p className="text-xs text-foreground">{r.message}</p>
+
+                  {r.admin_reply ? (
+                    <div className="rounded-md bg-primary/10 p-2">
+                      <p className="text-[10px] font-semibold text-primary mb-0.5">Your Reply</p>
+                      <p className="text-xs text-foreground">{r.admin_reply}</p>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <Textarea
+                        value={replyTexts[r.id] || ''}
+                        onChange={(e) => setReplyTexts(prev => ({ ...prev, [r.id]: e.target.value }))}
+                        placeholder="Write a reply..."
+                        className="bg-muted border-border text-foreground text-xs"
+                        rows={2}
+                        maxLength={1000}
+                      />
+                      <Button
+                        size="sm"
+                        className="shrink-0 self-end"
+                        disabled={replyBusy === r.id || !replyTexts[r.id]?.trim()}
+                        onClick={() => handleReply(r.id)}
+                      >
+                        <Send className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
