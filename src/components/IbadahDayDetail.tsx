@@ -260,20 +260,24 @@ export function IbadahDayDetail({ day, monthName, hijriKey, log, onSave, onClose
                                         {items.map(item => {
                                             const isChecked = checklist[period]?.includes(item.id) || false;
                                             return (
-                                                <label
+                                                <div
                                                     key={item.id}
-                                                    className="flex items-start gap-3 py-2 px-3 rounded-md hover:bg-muted/30 cursor-pointer transition-colors"
+                                                    className="flex items-start gap-3 py-2 px-3 rounded-md hover:bg-muted/30 transition-colors"
                                                 >
                                                     <Checkbox
                                                         checked={isChecked}
                                                         onCheckedChange={(checked) => toggleAdhkarItem(period, item.id, !!checked)}
                                                         className="mt-0.5"
                                                     />
-                                                    <div className="flex-1 min-w-0">
-                                                        <p className="text-sm font-medium leading-tight">{item.label}</p>
+                                                    <button
+                                                        type="button"
+                                                        className="flex-1 min-w-0 text-left"
+                                                        onClick={() => setActiveAdhkarItem(item)}
+                                                    >
+                                                        <p className="text-sm font-medium leading-tight text-primary underline-offset-2 hover:underline">{item.label}</p>
                                                         <p className="text-xs text-muted-foreground mt-0.5 font-arabic" dir="rtl">{item.arabic}</p>
-                                                    </div>
-                                                </label>
+                                                    </button>
+                                                </div>
                                             );
                                         })}
                                     </CollapsibleContent>
