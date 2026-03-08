@@ -66,10 +66,21 @@ export function useIbadah() {
 
         if (!error && data) {
             const logsMap: Record<string, IbadahLog> = {};
-            data.forEach((row: any) => {
+            data.forEach((row) => {
                 logsMap[row.hijri_date] = {
-                    ...row,
-                    missed_reasons: row.missed_reasons || {},
+                    hijri_date: row.hijri_date,
+                    fajr_status: (row.fajr_status as IbadahStatus) || 'none',
+                    dhuhr_status: (row.dhuhr_status as IbadahStatus) || 'none',
+                    asr_status: (row.asr_status as IbadahStatus) || 'none',
+                    maghrib_status: (row.maghrib_status as IbadahStatus) || 'none',
+                    isha_status: (row.isha_status as IbadahStatus) || 'none',
+                    taraweeh_status: (row.taraweeh_status as IbadahStatus) || 'none',
+                    quran_minutes: row.quran_minutes ?? 0,
+                    tahajjud: row.tahajjud ?? false,
+                    dhikr: row.dhikr ?? false,
+                    sadaqah: row.sadaqah ?? false,
+                    missed_reasons: (row.missed_reasons as Record<string, string>) || {},
+                    notes: row.notes ?? undefined,
                 };
             });
             setLogs(logsMap);
@@ -97,7 +108,7 @@ export function useIbadah() {
 
         const { error } = await supabase
             .from('ramadan_ibadah_logs')
-            .upsert(payload as any, { onConflict: 'user_id, hijri_date' });
+            .upsert(payload as Record<string, unknown> & { user_id: string; hijri_date: string }, { onConflict: 'user_id, hijri_date' });
 
         if (!error) {
             setLogs(prev => ({
@@ -111,7 +122,7 @@ export function useIbadah() {
     const calculateScore = useCallback((dayLog: IbadahLog | undefined): number => {
         if (!dayLog) return 0;
         let score = 0;
-        let maxScore = 50 + 5 + 5 + 5;
+        let maxScore = 50 + 5 + 5 + 5 + 5; // 5 prayers(50) + taraweeh(5) + tahajjud(5) + dhikr(5) + sadaqah(5) = 70
 
         const prayerKeys: (keyof IbadahLog)[] = ['fajr_status', 'dhuhr_status', 'asr_status', 'maghrib_status', 'isha_status'];
         prayerKeys.forEach(p => {

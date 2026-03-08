@@ -14,7 +14,7 @@ import { IbadahLog, IbadahStatus, MISSED_REASONS, CORRECTIVE_SUGGESTIONS } from 
 interface IbadahDayDetailProps {
     day: string;
     log: IbadahLog | undefined;
-    onSave: (updates: Partial<IbadahLog>) => Promise<any>;
+    onSave: (updates: Partial<IbadahLog>) => Promise<{ error: string | null }>;
     onClose: () => void;
 }
 

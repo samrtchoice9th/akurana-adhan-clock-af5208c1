@@ -276,7 +276,7 @@ Deno.serve(async (req) => {
       if (!VALID_REMINDER_TYPES.has(row.reminder_type) || !row.token) continue;
 
       for (const prayer of PRAYER_FIELDS) {
-        const prayerHHMM = normalizeToHHMM((prayerRow as any)[prayer]);
+        const prayerHHMM = normalizeToHHMM((prayerRow as Record<string, string | null>)[prayer]);
         if (!prayerHHMM) continue;
 
         const targetTime = calculateReminderTime(prayerHHMM, row.reminder_type);
@@ -305,7 +305,7 @@ Deno.serve(async (req) => {
       .select("dedupe_key")
       .in("dedupe_key", dedupeKeys);
 
-    const sentKeys = new Set((existingLogs || []).map((r: any) => r.dedupe_key));
+    const sentKeys = new Set((existingLogs || []).map((r: { dedupe_key: string }) => r.dedupe_key));
     const toSend = candidates.filter((c) => !sentKeys.has(c.dedupeKey));
 
     if (!toSend.length) {
@@ -318,7 +318,7 @@ Deno.serve(async (req) => {
     const accessToken = await getAccessToken(serviceAccount);
 
     // 7. Send notifications
-    const sentLogRows: any[] = [];
+    const sentLogRows: { token: string; prayer_name: string; reminder_type: string; sent_at: string; dedupe_key: string }[] = [];
     const invalidTokenIds: string[] = [];
     let failCount = 0;
 
