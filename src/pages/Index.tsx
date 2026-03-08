@@ -6,6 +6,7 @@ import { useHijriDate, formatHijriDate, getDisplayHijri } from '@/hooks/useHijri
 import { useNotifications } from '@/hooks/useNotifications';
 import { useTheme } from '@/hooks/useTheme';
 import { useLocation } from '@/hooks/useLocation';
+import { useAdhanAlert } from '@/hooks/useAdhanAlert';
 import { NextPrayerCard } from '@/components/NextPrayerCard';
 import { PrayerRow } from '@/components/PrayerRow';
 import { JumuahBanner } from '@/components/JumuahBanner';
@@ -39,6 +40,9 @@ const Index = () => {
 
   // Initialize FCM notification permission flow on first app open
   useNotifications(location, true);
+
+  // Play short takbeer audio 5 minutes before each prayer
+  useAdhanAlert(prayers);
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center px-4 py-6 max-w-md mx-auto">

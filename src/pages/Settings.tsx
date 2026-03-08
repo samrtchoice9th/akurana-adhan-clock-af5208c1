@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { ArrowLeft, Palette, Layout, Check, Bell, Gem, Coffee, Trees, Factory, Grape, Flame, MapPin, User, LogOut, Trash2, Shield } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ArrowLeft, Palette, Layout, Check, Bell, Gem, Coffee, Trees, Factory, Grape, Flame, MapPin, User, LogOut, Trash2, Shield, Volume2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
@@ -52,6 +52,12 @@ export default function Settings() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [deleting, setDeleting] = useState(false);
+  const [adhanAlert, setAdhanAlert] = useState(() => localStorage.getItem('adhan-alert-enabled') !== 'false');
+
+  const toggleAdhanAlert = (val: boolean) => {
+    setAdhanAlert(val);
+    localStorage.setItem('adhan-alert-enabled', val ? 'true' : 'false');
+  };
 
   const handleLogout = async () => {
     await signOut();
@@ -225,6 +231,24 @@ export default function Settings() {
                 {style === s.value && <Check className="h-4 w-4 text-primary shrink-0" />}
               </button>
             ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Adhan Voice Alert */}
+      <Card className="w-full bg-card border-border mb-4">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm text-primary flex items-center gap-2">
+            <Volume2 className="h-4 w-4" /> Adhan Voice Alert
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-4 pt-0">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-foreground">Play Takbeer before prayer</p>
+              <p className="text-xs text-muted-foreground">Short audio 5 minutes before each Adhan</p>
+            </div>
+            <Switch checked={adhanAlert} onCheckedChange={toggleAdhanAlert} />
           </div>
         </CardContent>
       </Card>
