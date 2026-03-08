@@ -2,143 +2,56 @@
 
 # Full Codebase Audit — Findings & Fix Plan
 
-## Security Issues (4 findings)
+## CRITICAL: Build Errors (3 errors blocking deployment)
 
-### S1. `users_push_tokens` — Fully Public (CRITICAL)
-**File:** Database RLS  
-The table has `ALL` policy with `USING (true)` and `WITH CHECK (true)`. Anyone can read all FCM tokens, device IDs, and locations. This is a data leak and spam vector.
+### E1. `send-prayer-reminders/index.ts:65` — TypeScript error with `crypto.subtle.sign`
+The return type of `crypto.subtle.sign` is `ArrayBuffer`, but passing `strToUint8(signingInput)` (a `Uint8Array<ArrayBufferLike>`) fails type-checking in strict Deno. 
 
-**Fix:** Replace the permissive ALL policy with device_id-scoped policies. Since push tokens aren't tied to auth users, use device_id matching. For service-role-only inserts from edge functions, restrict INSERT/UPDATE/DELETE to authenticated or service_role, keep SELECT restricted.
+**Fix:** Cast the signing input: `new Uint8Array(strToUint8(signingInput))` or use `as BufferSource`. Also cast the signature result properly.
 
-### S2. Leaked Password Protection Disabled
-**File:** Auth config  
-The security scan flags this. Passwords aren't checked against breach databases.
+### E2–E3. `sync-daily-prayer-times/index.ts:118-119` — `error` is of type `unknown`
+The `catch` block uses `error.message` without narrowing.
 
-**Fix:** Enable leaked password protection via auth settings tool.
+**Fix:** Add `instanceof Error` check: `const msg = error instanceof Error ? error.message : String(error);`
 
-### S3. `profiles` RLS uses RESTRICTIVE policies only
-**File:** Database RLS  
-All three policies on `profiles` are `RESTRICTIVE` (Permissive: No). In Postgres, RESTRICTIVE policies are combined with AND — meaning if there are no PERMISSIVE policies, access is denied by default. However, the `handle_new_user` trigger uses `SECURITY DEFINER` so it bypasses RLS for inserts. The current setup works but is fragile — if anyone changes the trigger, profile creation breaks silently.
+## Remaining Issues Found
 
-**Fix:** No change needed — the SECURITY DEFINER trigger correctly handles this. But worth noting.
+### F1. `IbadahDayDetail.tsx:17` — `onSave` return type is `Promise<any>`
+Should be `Promise<{ error: string | null }>` to match `useIbadah.saveLog`.
 
-### S4. `HadithBanner.tsx` — `console.error` remains
-**File:** `src/components/HadithBanner.tsx:34`  
-A `console.error` call was missed in the previous cleanup.
+### F2. `useIbadah.ts:69,96,100` — Remaining `as any` casts
+The `data.forEach((row: any)` and `upsert(payload as any)` casts persist from before.
 
-**Fix:** Remove it.
+### F3. `useIbadah.ts:114` — `maxScore` initialized wrong
+`maxScore = 50 + 5 + 5 + 5 = 65` but taraweeh (5) is included as part of the 50. Actually the 5 prayers × 10 = 50, plus taraweeh 5, tahajjud 5, dhikr 5, sadaqah 5 = 70, plus quran 10 = 80. The current code sets `maxScore = 65` initially, then adds 10 for quran = 75. This means the score calculation is wrong — it should be 80 max, not 75.
 
-## Bugs (5 findings)
+### F4. `send-prayer-reminders/index.ts:279,308,321` — `as any` casts
+Minor type casts that could be improved.
 
-### B1. `IbadahDayDetail.tsx` — Local `Card` component shadows imported `Card`
-**File:** `src/components/IbadahDayDetail.tsx:260-265`  
-A local `Card` function is defined at the bottom of the file, but the real `Card` from `@/components/ui/card` is imported at line 4. The local one is used only in the "missed reason" overlay. This causes inconsistent styling.
+### F5. `Admin.tsx:462+` — Need to check remaining code
+The file is 702 lines; I only saw 462 lines.
 
-**Fix:** Remove the local `Card` and use the imported one.
+### F6. `csvParser.ts:76` — First row must end with `-01-01`
+The check `!firstDate.endsWith('-01-01')` is fine (year-agnostic). No issue here — this was already fixed.
 
-### B2. `csvParser.ts` — Hardcoded `2026-01-01` check
-**File:** `src/lib/csvParser.ts:75`  
-The CSV parser requires the first row to be `2026-01-01`. This will break in 2027.
+## Implementation Plan
 
-**Fix:** Remove the hardcoded year check or make it dynamic.
+1. **Fix build errors** in edge functions (critical — blocks deployment)
+   - `send-prayer-reminders/index.ts`: Fix `BufferSource` type error
+   - `sync-daily-prayer-times/index.ts`: Narrow `unknown` error type
 
-### B3. `excelParser.ts` — Hardcoded `YEAR = 2026`
-**File:** `src/lib/excelParser.ts:9` and line 148  
-Same hardcoded year issue. Will break next year.
+2. **Fix score calculation bug** in `useIbadah.ts` — maxScore should be 80, not 75
 
-**Fix:** Derive from the current year or the Excel data itself.
+3. **Improve typing** — Remove `as any` in `useIbadah.ts` and `IbadahDayDetail.tsx`
 
-### B4. `NotFound.tsx` — `console.error` in production
-**File:** `src/pages/NotFound.tsx:8`  
-Logs 404 errors to console unnecessarily.
+4. **Minor cleanup** — Remove unused `RAMADAN_IQAMATH_OFFSETS` export from `iqamathOffset.ts`
 
-**Fix:** Remove.
+## Files to Modify
 
-### B5. `useIbadah.ts` — `saveLog` return type inconsistency
-**File:** `src/hooks/useIbadah.ts:86,108`  
-Returns `{ message: string }` when not authenticated but returns `error` object (or undefined) on success. The caller in `IbadahDayDetail` doesn't check the return value, so no runtime bug, but the inconsistent return type is fragile.
-
-**Fix:** Normalize to always return `{ error: string | null }`.
-
-## Performance Issues (2 findings)
-
-### P1. `useClock` — 1-second interval causes full re-render tree
-**File:** `src/hooks/useClock.ts`  
-Every second, `setNow(new Date())` triggers a re-render of the entire `Index` page and all children. This is acceptable for a clock app but worth noting.
-
-**Fix:** No change needed — this is intentional for a live clock.
-
-### P2. `RamadanChart` — `getWeeklyReport()` called on every render
-**File:** `src/pages/RamadanChart.tsx:33`  
-`getWeeklyReport()` is called directly in render without memoization. It iterates all logs each time.
-
-**Fix:** Wrap in `useMemo` or move the call result to state.
-
-## Code Quality (6 findings)
-
-### Q1. Unused CSS theme classes in `index.css`
-**File:** `src/index.css:51-224`  
-All `.theme-*` classes are defined but never applied — the theme is applied via inline CSS variables in `useTheme.tsx`. These ~170 lines are dead code.
-
-**Fix:** Remove the unused `.theme-*` classes.
-
-### Q2. `NavLink.tsx` — Unused component
-**File:** `src/components/NavLink.tsx`  
-Not imported anywhere in the project.
-
-**Fix:** Remove the file.
-
-### Q3. `RAMADAN_IQAMATH_OFFSETS` and constants — Partially unused
-**File:** `src/lib/iqamathOffset.ts:49-60`  
-`RAMADAN_IQAMATH_OFFSETS` is exported but never imported. `RAMADAN_ISHA_IQAMAH` and `RAMADAN_TARAWEEH_TIME` are also unused — the values are hardcoded directly in `usePrayerTimes.ts:75-76`.
-
-**Fix:** Use the constants from `iqamathOffset.ts` in `usePrayerTimes.ts` instead of hardcoded strings, or remove the unused exports.
-
-### Q4. `useIbadah.ts` — `any` type casts
-**File:** `src/hooks/useIbadah.ts:69,96,118,147`  
-Multiple `as any` casts throughout.
-
-**Fix:** Use proper typed access with keyof patterns.
-
-### Q5. `parseTimeToMinutes` duplicated
-**File:** `src/hooks/usePrayerTimes.ts:26-40` and `src/hooks/useHijriDate.ts:70-84`  
-Identical function defined in two files.
-
-**Fix:** Extract to a shared utility in `src/lib/timeUtils.ts`.
-
-### Q6. `Lovable badge hiding CSS` 
-**File:** `src/index.css:266-272`  
-CSS to hide the Lovable badge. This is fine for production but uses `[class*="lovable"]` which could accidentally hide legitimate elements.
-
-**Fix:** No change — acceptable for production.
-
-## Implementation Order
-
-1. **Database migration** — Fix `users_push_tokens` RLS, enable leaked password protection
-2. **Remove dead code** — Unused CSS theme classes, NavLink.tsx, console statements
-3. **Fix hardcoded years** — csvParser.ts, excelParser.ts
-4. **Fix IbadahDayDetail** — Remove local Card shadow
-5. **Use shared constants** — iqamathOffset constants in usePrayerTimes
-6. **Extract shared utility** — parseTimeToMinutes
-7. **Improve typing** — Remove `any` casts in useIbadah
-8. **Memoize** — getWeeklyReport in RamadanChart
-
-## Files to Create/Modify
-
-| File | Action |
+| File | Change |
 |------|--------|
-| DB migration | Fix `users_push_tokens` RLS policies |
-| Auth config | Enable leaked password protection |
-| `src/index.css` | Remove ~170 lines of unused `.theme-*` classes |
-| `src/components/NavLink.tsx` | Delete |
-| `src/components/HadithBanner.tsx` | Remove console.error |
-| `src/pages/NotFound.tsx` | Remove console.error |
-| `src/lib/csvParser.ts` | Remove hardcoded 2026 check |
-| `src/lib/excelParser.ts` | Make year dynamic |
-| `src/components/IbadahDayDetail.tsx` | Remove local Card, use imported |
-| `src/hooks/usePrayerTimes.ts` | Use constants from iqamathOffset |
-| `src/lib/timeUtils.ts` | New — shared parseTimeToMinutes |
-| `src/hooks/useHijriDate.ts` | Import shared parseTimeToMinutes |
-| `src/hooks/useIbadah.ts` | Fix any casts, normalize return type |
-| `src/pages/RamadanChart.tsx` | Memoize getWeeklyReport |
+| `supabase/functions/send-prayer-reminders/index.ts` | Fix BufferSource type at line 65 |
+| `supabase/functions/sync-daily-prayer-times/index.ts` | Narrow error type at lines 118-119 |
+| `src/hooks/useIbadah.ts` | Fix maxScore (65→70), reduce `any` casts |
+| `src/components/IbadahDayDetail.tsx` | Fix `onSave` return type |
 
