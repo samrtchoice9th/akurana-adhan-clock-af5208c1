@@ -29,7 +29,7 @@ const PRAYERS = [
     { id: 'taraweeh', label: 'Taraweeh' },
 ];
 
-const ADHKAR_ITEMS = [
+const ADHKAR_ITEMS: { id: string; label: string; arabic: string; periods: ('morning' | 'evening')[] }[] = [
     { id: 'sayyidul_istighfar', label: 'Sayyidul Istighfar', arabic: 'سيد الاستغفار', periods: ['morning', 'evening'] },
     { id: 'subhanallah_100', label: 'Subhanallahi wa bihamdihi (100x)', arabic: 'سبحان الله وبحمده', periods: ['morning', 'evening'] },
     { id: 'la_ilaha_illallah_100', label: 'La ilaha illallah... (100x)', arabic: 'لا إله إلا الله وحده لا شريك له', periods: ['morning', 'evening'] },
@@ -40,7 +40,7 @@ const ADHKAR_ITEMS = [
     { id: 'adada_khalqihi', label: 'Subhanallahi adada khalqihi (3x)', arabic: 'سبحان الله وبحمده عدد خلقه', periods: ['morning', 'evening'] },
     { id: 'la_yadurru', label: 'Bismillahilladhi la yadurru (3x)', arabic: 'بسم الله الذي لا يضر مع اسمه شيء', periods: ['morning', 'evening'] },
     { id: 'audhu_bikalimatillah', label: "A'udhu bikalimatillah", arabic: 'أعوذ بكلمات الله التامات', periods: ['evening'] },
-] as const;
+];
 
 const DEFAULT_LOG: Partial<IbadahLog> = {
     fajr_status: 'none',
