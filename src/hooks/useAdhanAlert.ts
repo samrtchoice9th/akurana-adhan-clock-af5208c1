@@ -10,6 +10,8 @@ import { parseTimeToMinutes } from '@/lib/timeUtils';
  */
 export function useAdhanAlert(prayers: PrayerEntry[]) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const lastCheckedMinuteRef = useRef<string>('');
+  const audioUnlockedRef = useRef(false);
 
   useEffect(() => {
     // Create audio element once
@@ -18,6 +20,22 @@ export function useAdhanAlert(prayers: PrayerEntry[]) {
       audioRef.current.volume = 1.0;
     }
 
+    // Pre-warm audio on first user interaction to bypass autoplay policy
+    const unlockAudio = () => {
+      if (audioUnlockedRef.current || !audioRef.current) return;
+      audioUnlockedRef.current = true;
+      const a = audioRef.current;
+      a.play().then(() => {
+        a.pause();
+        a.currentTime = 0;
+      }).catch(() => {});
+      document.removeEventListener('click', unlockAudio);
+      document.removeEventListener('touchstart', unlockAudio);
+    };
+
+    document.addEventListener('click', unlockAudio, { once: true });
+    document.addEventListener('touchstart', unlockAudio, { once: true });
+
     const interval = setInterval(() => {
       // Check if feature is enabled
       const enabled = localStorage.getItem('adhan-alert-enabled');
@@ -25,11 +43,12 @@ export function useAdhanAlert(prayers: PrayerEntry[]) {
 
       const now = new Date();
       const currentMinutes = now.getHours() * 60 + now.getMinutes();
-      const currentSeconds = now.getSeconds();
       const dateKey = format(now, 'yyyy-MM-dd');
 
-      // Only trigger at :00 seconds to avoid multiple plays within the same minute
-      if (currentSeconds !== 0) return;
+      // Deduplicate by minute — run check only once per minute
+      const minuteKey = `${currentMinutes}-${dateKey}`;
+      if (minuteKey === lastCheckedMinuteRef.current) return;
+      lastCheckedMinuteRef.current = minuteKey;
 
       for (const prayer of prayers) {
         // Skip Sunrise — not a prayer with adhan
@@ -39,21 +58,33 @@ export function useAdhanAlert(prayers: PrayerEntry[]) {
         if (adhanMinutes === null) continue;
 
         const alertMinutes = adhanMinutes - 5;
-        if (alertMinutes < 0) continue; // edge case around midnight
+        if (alertMinutes < 0) continue;
 
         if (currentMinutes === alertMinutes) {
           const storageKey = `adhan-alert-${dateKey}-${prayer.name}`;
-          if (localStorage.getItem(storageKey)) continue; // already played
+          if (localStorage.getItem(storageKey)) continue;
 
           localStorage.setItem(storageKey, 'true');
-          audioRef.current?.play().catch(() => {
-            // Browser may block autoplay — silent fail
-          });
-          break; // only one alert per check
+          const audio = audioRef.current;
+          if (audio) {
+            audio.currentTime = 0;
+            audio.play().then(() => {
+              // Limit playback to ~1.5 seconds
+              setTimeout(() => {
+                audio.pause();
+                audio.currentTime = 0;
+              }, 1500);
+            }).catch(() => {});
+          }
+          break;
         }
       }
     }, 1000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('click', unlockAudio);
+      document.removeEventListener('touchstart', unlockAudio);
+    };
   }, [prayers]);
 }
