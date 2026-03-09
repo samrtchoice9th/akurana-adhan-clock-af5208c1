@@ -216,7 +216,10 @@ export function useNotifications(location: string, autoPrompt = false) {
   useEffect(() => {
     if (!hasLoadedRef.current) return;
     if (!enabled || !token) return;
-    void syncToken(true, prefs);
+    const timeout = setTimeout(() => {
+      void syncToken(true, prefs);
+    }, 500);
+    return () => clearTimeout(timeout);
   }, [enabled, token, location, prefs, syncToken]);
 
   return { enabled, permission, toggle, prefs, setPreference, busy, iosNeedsHomescreen: isIOS() };
