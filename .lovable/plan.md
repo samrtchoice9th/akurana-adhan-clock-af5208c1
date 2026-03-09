@@ -1,144 +1,56 @@
 
 
-# Full Codebase Audit — Findings & Fix Plan
+# Code Health Review — Bugs, Security Issues & Fixes
 
-## Security Issues (4 findings)
+## Issues Found
 
-### S1. `users_push_tokens` — Fully Public (CRITICAL)
-**File:** Database RLS  
-The table has `ALL` policy with `USING (true)` and `WITH CHECK (true)`. Anyone can read all FCM tokens, device IDs, and locations. This is a data leak and spam vector.
+### 1. SECURITY (Critical): Push tokens table wide open to anonymous users
+The `users_push_tokens` table has INSERT, UPDATE, and DELETE policies with `USING (true)` / `WITH CHECK (true)`. Any anonymous user can modify or delete all push notification tokens in the database.
 
-**Fix:** Replace the permissive ALL policy with device_id-scoped policies. Since push tokens aren't tied to auth users, use device_id matching. For service-role-only inserts from edge functions, restrict INSERT/UPDATE/DELETE to authenticated or service_role, keep SELECT restricted.
+**Fix**: Restrict INSERT/UPDATE/DELETE policies to match on `device_id` or require authentication. Since tokens aren't tied to auth users, use a device_id check pattern.
 
-### S2. Leaked Password Protection Disabled
-**File:** Auth config  
-The security scan flags this. Passwords aren't checked against breach databases.
+### 2. SECURITY (Warning): user_roles table readable by all authenticated users
+The SELECT policy on `user_roles` uses `USING (true)` — any signed-in user can enumerate all admin users. Should restrict to admins only.
 
-**Fix:** Enable leaked password protection via auth settings tool.
+**Fix**: Change the USING expression to `has_role(auth.uid(), 'admin'::app_role)`, and add a separate policy allowing users to read their own role: `user_id = auth.uid()`.
 
-### S3. `profiles` RLS uses RESTRICTIVE policies only
-**File:** Database RLS  
-All three policies on `profiles` are `RESTRICTIVE` (Permissive: No). In Postgres, RESTRICTIVE policies are combined with AND — meaning if there are no PERMISSIVE policies, access is denied by default. However, the `handle_new_user` trigger uses `SECURITY DEFINER` so it bypasses RLS for inserts. The current setup works but is fragile — if anyone changes the trigger, profile creation breaks silently.
+### 3. BUG: Adhan alert skips Taraweeh during Ramadan
+In `useAdhanAlert.ts`, the loop skips `Sunrise` but not `Taraweeh`. Since Taraweeh has a hardcoded time and no real "adhan", it should also be skipped to avoid false alerts.
 
-**Fix:** No change needed — the SECURITY DEFINER trigger correctly handles this. But worth noting.
+**Fix**: Add `prayer.name === 'Taraweeh'` to the skip condition.
 
-### S4. `HadithBanner.tsx` — `console.error` remains
-**File:** `src/components/HadithBanner.tsx:34`  
-A `console.error` call was missed in the previous cleanup.
+### 4. BUG: Stale localStorage keys never cleaned up
+`useAdhanAlert` writes `adhan-alert-${date}-${prayer}` keys daily but never removes old ones. Over months, localStorage accumulates hundreds of orphaned entries.
 
-**Fix:** Remove it.
+**Fix**: On each run, clean up keys older than 2 days.
 
-## Bugs (5 findings)
+### 5. BUG: `useNotifications` prefs not synced on change
+When a user toggles individual notification preferences (e.g. "10 minutes before"), `setPreference` only updates local state. The `syncToken` effect on line 216 fires, but `prefs` in the dependency array is the state object — since `setPrefs` creates a new object each time, this works. However, there's a race condition: if the user rapidly toggles multiple preferences, the intermediate syncs may overlap because `isSyncing` blocks concurrent calls, potentially dropping a preference update.
 
-### B1. `IbadahDayDetail.tsx` — Local `Card` component shadows imported `Card`
-**File:** `src/components/IbadahDayDetail.tsx:260-265`  
-A local `Card` function is defined at the bottom of the file, but the real `Card` from `@/components/ui/card` is imported at line 4. The local one is used only in the "missed reason" overlay. This causes inconsistent styling.
+**Fix**: Debounce the sync effect (e.g. 500ms delay) to batch rapid preference changes.
 
-**Fix:** Remove the local `Card` and use the imported one.
+### 6. STRUCTURAL: Admin page has no protection against non-admin route access
+The `/admin` route has no `AuthGuard` wrapper in `App.tsx`. The Admin component handles its own auth check, which is fine, but it's inconsistent with how `/ramadan-chart` uses `AuthGuard`.
 
-### B2. `csvParser.ts` — Hardcoded `2026-01-01` check
-**File:** `src/lib/csvParser.ts:75`  
-The CSV parser requires the first row to be `2026-01-01`. This will break in 2027.
+**Fix**: Minor — no action needed since Admin.tsx handles it internally, but noting for consistency.
 
-**Fix:** Remove the hardcoded year check or make it dynamic.
+### 7. BUG: `user_reviews` RLS uses RESTRICTIVE policies
+All policies on `user_reviews` are `Permissive: No` (RESTRICTIVE). When a user who is also an admin tries to read reviews, both the "Users read own reviews" and "Admins read all reviews" policies must BOTH pass (since RESTRICTIVE = AND logic). This means an admin can only see their own reviews, not all reviews.
 
-### B3. `excelParser.ts` — Hardcoded `YEAR = 2026`
-**File:** `src/lib/excelParser.ts:9` and line 148  
-Same hardcoded year issue. Will break next year.
+**Fix**: Change policies to PERMISSIVE (the default) so they use OR logic — a user can read if they own the review OR if they're an admin.
 
-**Fix:** Derive from the current year or the Excel data itself.
+### 8. Same issue on `hadiths` table
+All hadiths RLS policies are RESTRICTIVE. The "Public can read hadiths" policy combined with "Admins can insert" means both must pass for admin inserts — but "public read" is SELECT only, so this should be fine for different commands. However, the RESTRICTIVE nature means if there were ever two SELECT policies, they'd AND together. Currently safe but fragile.
 
-### B4. `NotFound.tsx` — `console.error` in production
-**File:** `src/pages/NotFound.tsx:8`  
-Logs 404 errors to console unnecessarily.
+## Summary of Changes
 
-**Fix:** Remove.
+| File/Resource | Change |
+|---|---|
+| DB migration | Fix `users_push_tokens` RLS: restrict UPDATE/DELETE to `device_id` match |
+| DB migration | Fix `user_roles` SELECT policy to admin-only + self-read |
+| DB migration | Fix `user_reviews` policies to PERMISSIVE |
+| `src/hooks/useAdhanAlert.ts` | Skip Taraweeh; add localStorage cleanup for old keys |
+| `src/hooks/useNotifications.ts` | Debounce preference sync to prevent race conditions |
 
-### B5. `useIbadah.ts` — `saveLog` return type inconsistency
-**File:** `src/hooks/useIbadah.ts:86,108`  
-Returns `{ message: string }` when not authenticated but returns `error` object (or undefined) on success. The caller in `IbadahDayDetail` doesn't check the return value, so no runtime bug, but the inconsistent return type is fragile.
-
-**Fix:** Normalize to always return `{ error: string | null }`.
-
-## Performance Issues (2 findings)
-
-### P1. `useClock` — 1-second interval causes full re-render tree
-**File:** `src/hooks/useClock.ts`  
-Every second, `setNow(new Date())` triggers a re-render of the entire `Index` page and all children. This is acceptable for a clock app but worth noting.
-
-**Fix:** No change needed — this is intentional for a live clock.
-
-### P2. `RamadanChart` — `getWeeklyReport()` called on every render
-**File:** `src/pages/RamadanChart.tsx:33`  
-`getWeeklyReport()` is called directly in render without memoization. It iterates all logs each time.
-
-**Fix:** Wrap in `useMemo` or move the call result to state.
-
-## Code Quality (6 findings)
-
-### Q1. Unused CSS theme classes in `index.css`
-**File:** `src/index.css:51-224`  
-All `.theme-*` classes are defined but never applied — the theme is applied via inline CSS variables in `useTheme.tsx`. These ~170 lines are dead code.
-
-**Fix:** Remove the unused `.theme-*` classes.
-
-### Q2. `NavLink.tsx` — Unused component
-**File:** `src/components/NavLink.tsx`  
-Not imported anywhere in the project.
-
-**Fix:** Remove the file.
-
-### Q3. `RAMADAN_IQAMATH_OFFSETS` and constants — Partially unused
-**File:** `src/lib/iqamathOffset.ts:49-60`  
-`RAMADAN_IQAMATH_OFFSETS` is exported but never imported. `RAMADAN_ISHA_IQAMAH` and `RAMADAN_TARAWEEH_TIME` are also unused — the values are hardcoded directly in `usePrayerTimes.ts:75-76`.
-
-**Fix:** Use the constants from `iqamathOffset.ts` in `usePrayerTimes.ts` instead of hardcoded strings, or remove the unused exports.
-
-### Q4. `useIbadah.ts` — `any` type casts
-**File:** `src/hooks/useIbadah.ts:69,96,118,147`  
-Multiple `as any` casts throughout.
-
-**Fix:** Use proper typed access with keyof patterns.
-
-### Q5. `parseTimeToMinutes` duplicated
-**File:** `src/hooks/usePrayerTimes.ts:26-40` and `src/hooks/useHijriDate.ts:70-84`  
-Identical function defined in two files.
-
-**Fix:** Extract to a shared utility in `src/lib/timeUtils.ts`.
-
-### Q6. `Lovable badge hiding CSS` 
-**File:** `src/index.css:266-272`  
-CSS to hide the Lovable badge. This is fine for production but uses `[class*="lovable"]` which could accidentally hide legitimate elements.
-
-**Fix:** No change — acceptable for production.
-
-## Implementation Order
-
-1. **Database migration** — Fix `users_push_tokens` RLS, enable leaked password protection
-2. **Remove dead code** — Unused CSS theme classes, NavLink.tsx, console statements
-3. **Fix hardcoded years** — csvParser.ts, excelParser.ts
-4. **Fix IbadahDayDetail** — Remove local Card shadow
-5. **Use shared constants** — iqamathOffset constants in usePrayerTimes
-6. **Extract shared utility** — parseTimeToMinutes
-7. **Improve typing** — Remove `any` casts in useIbadah
-8. **Memoize** — getWeeklyReport in RamadanChart
-
-## Files to Create/Modify
-
-| File | Action |
-|------|--------|
-| DB migration | Fix `users_push_tokens` RLS policies |
-| Auth config | Enable leaked password protection |
-| `src/index.css` | Remove ~170 lines of unused `.theme-*` classes |
-| `src/components/NavLink.tsx` | Delete |
-| `src/components/HadithBanner.tsx` | Remove console.error |
-| `src/pages/NotFound.tsx` | Remove console.error |
-| `src/lib/csvParser.ts` | Remove hardcoded 2026 check |
-| `src/lib/excelParser.ts` | Make year dynamic |
-| `src/components/IbadahDayDetail.tsx` | Remove local Card, use imported |
-| `src/hooks/usePrayerTimes.ts` | Use constants from iqamathOffset |
-| `src/lib/timeUtils.ts` | New — shared parseTimeToMinutes |
-| `src/hooks/useHijriDate.ts` | Import shared parseTimeToMinutes |
-| `src/hooks/useIbadah.ts` | Fix any casts, normalize return type |
-| `src/pages/RamadanChart.tsx` | Memoize getWeeklyReport |
+The security fixes (items 1, 2, 7) are highest priority.
 
