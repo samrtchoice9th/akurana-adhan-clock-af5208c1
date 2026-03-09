@@ -50,9 +50,20 @@ export function useAdhanAlert(prayers: PrayerEntry[]) {
       if (minuteKey === lastCheckedMinuteRef.current) return;
       lastCheckedMinuteRef.current = minuteKey;
 
+      // Clean up localStorage keys older than 2 days
+      const allKeys = Object.keys(localStorage);
+      for (const key of allKeys) {
+        if (!key.startsWith('adhan-alert-')) continue;
+        const parts = key.replace('adhan-alert-', '').split('-');
+        const keyDate = parts.slice(0, 3).join('-');
+        if (keyDate && keyDate < format(new Date(now.getTime() - 2 * 86400000), 'yyyy-MM-dd')) {
+          localStorage.removeItem(key);
+        }
+      }
+
       for (const prayer of prayers) {
-        // Skip Sunrise — not a prayer with adhan
-        if (prayer.name === 'Sunrise' || !prayer.adhan) continue;
+        // Skip Sunrise and Taraweeh — no real adhan
+        if (prayer.name === 'Sunrise' || prayer.name === 'Taraweeh' || !prayer.adhan) continue;
 
         const adhanMinutes = parseTimeToMinutes(prayer.adhan);
         if (adhanMinutes === null) continue;
